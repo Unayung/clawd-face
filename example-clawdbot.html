@@ -47,12 +47,66 @@
   }
   #send-btn:hover { background: rgba(142,120,190,0.35); }
   #send-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* User message bubble */
+  #bubble {
+    position: fixed;
+    top: 8vh;
+    max-width: 60vw;
+    padding: 1.2em 1.8em;
+    background: rgba(255,255,255,0.85);
+    color: #4a3f5c;
+    border-radius: 1.5em;
+    font-size: clamp(0.9rem, 2.2vw, 1.5rem);
+    line-height: 1.5;
+    text-align: left;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 10;
+    pointer-events: none;
+    font-family: inherit;
+    box-shadow: 0 4px 20px rgba(142,120,190,0.15);
+  }
+  #bubble.right {
+    right: 4vw;
+    left: auto;
+  }
+  #bubble.right::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -18px;
+    transform: translateY(-50%);
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-left: 20px solid rgba(255,255,255,0.85);
+  }
+  #bubble.left {
+    left: 4vw;
+    right: auto;
+  }
+  #bubble.left::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -18px;
+    transform: translateY(-50%);
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-right: 20px solid rgba(255,255,255,0.85);
+  }
+  #bubble.visible {
+    opacity: 1;
+  }
 </style>
 </head>
 <body>
 
 <!-- Face engine (creates window.face) -->
 <script src="face.js"></script>
+
+<!-- User message bubble -->
+<div id="bubble"></div>
 
 <!-- Status indicator -->
 <div id="bot-status">Disconnected</div>
@@ -78,6 +132,23 @@ const CONFIG = {
 const statusEl = document.getElementById('bot-status');
 const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
+const bubbleEl = document.getElementById('bubble');
+
+// ── User message bubble ──
+let bubbleTimeout = null;
+function showBubble(text, duration) {
+  clearTimeout(bubbleTimeout);
+  bubbleEl.classList.remove('visible', 'left', 'right');
+  const side = Math.random() < 0.5 ? 'left' : 'right';
+  bubbleEl.classList.add(side);
+  bubbleEl.textContent = text;
+  requestAnimationFrame(() => {
+    bubbleEl.classList.add('visible');
+  });
+  bubbleTimeout = setTimeout(() => {
+    bubbleEl.classList.remove('visible');
+  }, duration || 8000);
+}
 
 const bot = new ClawdbotFace({
   gatewayUrl: CONFIG.gatewayUrl,
@@ -118,6 +189,10 @@ function sendMessage() {
   chatInput.value = '';
   chatInput.disabled = true;
   sendBtn.disabled = true;
+
+  // Show user message as bubble
+  showBubble(text, Math.max(text.length * 150, 5000));
+
   bot.send(text);
 }
 
