@@ -421,10 +421,12 @@
   let spaceHeld = false;
   let pendingSend = false;
 
-  // MediaRecorder fallback (for iOS or browsers without Web Speech)
+  // MediaRecorder fallback (for iOS, Edge, or browsers with unreliable Web Speech)
   let mediaRecorder = null;
   let audioChunks = [];
   let useMediaRecorder = false;
+  let speechErrorCount = 0;
+  const MAX_SPEECH_ERRORS = 2; // Switch to MediaRecorder after 2 consecutive errors
 
   // Try to use Web Speech API
   if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -435,6 +437,9 @@
     recognition.continuous = true;
 
     recognition.onresult = (event) => {
+      // Reset error count on successful result
+      speechErrorCount = 0;
+
       let transcript = '';
       let hasFinal = false;
       for (let i = 0; i < event.results.length; i++) {
@@ -463,6 +468,22 @@
 
     recognition.onerror = (event) => {
       console.log('[speech] error:', event.error);
+      speechErrorCount++;
+
+      // On network/service errors, switch to MediaRecorder fallback
+      if (event.error === 'network' || event.error === 'service-not-allowed' ||
+          event.error === 'not-allowed' || speechErrorCount >= MAX_SPEECH_ERRORS) {
+        console.log('[speech] Switching to MediaRecorder fallback');
+        useMediaRecorder = true;
+
+        // If we were recording, restart with MediaRecorder
+        if (isRecording) {
+          isRecording = false;
+          startRecording(); // Will use MediaRecorder now
+          return;
+        }
+      }
+
       pendingSend = false;
       stopRecording();
     };
