@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#e0c3fc">
+<title>Clawd Face</title>
+<style>
+  * {
+    margin: 0; padding: 0; box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  body {
+    background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #f5d5e0 100%);
+    color: #4a3f5c;
+    font-family: 'Courier New', 'Menlo', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    cursor: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #scene {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Ambient glow */
+  #glow {
+    position: fixed;
+    width: 50vmin;
+    height: 50vmin;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.1;
+    transition: background 1.2s ease;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #face-svg {
+    width: 85vmin;
+    height: 60vmin;
+    max-width: 1000px;
+    max-height: 700px;
+    z-index: 1;
+    overflow: visible;
+    transition: opacity 0.4s ease;
+  }
+  #face-svg.fading { opacity: 0; }
+
+  /* Breathing */
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.015); }
+  }
+  #scene { animation: breathe 4s ease-in-out infinite; }
+
+  #label {
+    margin-top: 1.5rem;
+    font-size: clamp(0.7rem, 1.8vw, 1.2rem);
+    color: #8a7aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.35em;
+    transition: opacity 0.5s ease;
+    z-index: 1;
+  }
+
+  /* Subtitle overlay */
+  #subtitle {
+    position: fixed;
+    bottom: 8vh;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 80vw;
+    text-align: center;
+    font-size: clamp(1rem, 2.8vw, 1.8rem);
+    color: #4a3f5c;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 10;
+    pointer-events: none;
+    text-shadow: 0 1px 4px rgba(255,255,255,0.6);
+  }
+  #subtitle.visible { opacity: 1; }
+
+  /* SVG styles */
+  .face-part {
+    fill: none;
+    stroke: #4a3f5c;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .eye-shape {
+    fill: #4a3f5c;
+    stroke: none;
+    transition: opacity 0.08s ease;
+  }
+  .pupil {
+    fill: #fff;
+    stroke: none;
+  }
+  .mouth-line {
+    stroke: #4a3f5c;
+    stroke-width: 3;
+    fill: none;
+    stroke-linecap: round;
+  }
+</style>
+</head>
+<body>
+
+<div id="glow"></div>
+<div id="scene">
+  <svg id="face-svg" viewBox="0 0 400 260">
+    <g id="eye-left" transform="translate(130, 105)"></g>
+    <g id="eye-right" transform="translate(270, 105)"></g>
+    <path class="mouth-line" id="mouth" d="M 170,180 Q 200,200 230,180" />
+  </svg>
+  <div id="label">idle</div>
+</div>
+<div id="subtitle"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  Clawd Face — Expressive SVG Face Engine
+// ══════════════════════════════════════════════
+
+// ── Expression Definitions ──
+const expressions = {
+  idle: {
+    eyeRx: 18, eyeRy: 20, pupilR: 7, pupilOffY: 2,
+    mouth: "M 170,180 Q 200,198 230,180",
+    label: "idle", glow: "#4a9eff"
+  },
+  happy: {
+    eyeRx: 18, eyeRy: 12, pupilR: 6, pupilOffY: 0,
+    eyeStyle: "happy",
+    mouth: "M 165,175 Q 200,212 235,175",
+    label: "happy", glow: "#ffda6b"
+  },
+  thinking: {
+    eyeRx: 16, eyeRy: 20, pupilR: 7, pupilOffY: 0,
+    pupilOffX: 6,
+    mouth: "M 175,185 Q 200,185 225,180",
+    label: "thinking", glow: "#a78bfa"
+  },
+  investigating: {
+    eyeRx: 22, eyeRy: 24, pupilR: 5, pupilOffY: 0,
+    mouth: "M 180,185 L 220,185",
+    label: "investigating", glow: "#f97316"
+  },
+  sleepy: {
+    eyeRx: 16, eyeRy: 5, pupilR: 4, pupilOffY: 0,
+    eyeStyle: "sleepy",
+    mouth: "M 175,183 Q 200,190 225,183",
+    label: "zzz...", glow: "#3b4f7a",
+    noBlink: true
+  },
+  bored: {
+    eyeRx: 18, eyeRy: 10, pupilR: 6, pupilOffY: 2,
+    eyeStyle: "halfopen",
+    mouth: "M 180,185 L 220,185",
+    label: "bored", glow: "#6b7280"
+  },
+  amused: {
+    eyeRx: 16, eyeRy: 11, pupilR: 5, pupilOffY: 0,
+    eyeStyle: "happy",
+    mouth: "M 160,172 Q 200,218 240,172",
+    label: "haha", glow: "#34d399"
+  },
+  surprised: {
+    eyeRx: 24, eyeRy: 26, pupilR: 5, pupilOffY: 0,
+    mouth: "M 185,180 Q 200,200 215,180 Q 200,200 185,180",
+    mouthStyle: "open",
+    label: "!?", glow: "#f43f5e"
+  },
+  focused: {
+    eyeRx: 16, eyeRy: 14, pupilR: 6, pupilOffY: 2,
+    eyeStyle: "focused",
+    mouth: "M 180,185 L 220,183",
+    label: "working", glow: "#06b6d4"
+  },
+  cool: {
+    eyeRx: 20, eyeRy: 8, pupilR: 0, pupilOffY: 0,
+    eyeStyle: "cool",
+    mouth: "M 172,180 Q 200,195 228,180",
+    label: "cool", glow: "#8b5cf6",
+    noBlink: true
+  },
+  confused: {
+    eyeRx: 18, eyeRy: 20, pupilR: 7, pupilOffY: 0,
+    pupilOffX: -3,
+    eyeStyle: "confused",
+    mouth: "M 175,183 Q 200,183 220,190",
+    label: "huh?", glow: "#fbbf24"
+  },
+  excited: {
+    eyeRx: 20, eyeRy: 20, pupilR: 4, pupilOffY: -2,
+    eyeStyle: "star",
+    mouth: "M 160,170 Q 200,218 240,170",
+    label: "!!", glow: "#ec4899"
+  },
+  sad: {
+    eyeRx: 16, eyeRy: 18, pupilR: 7, pupilOffY: 5,
+    mouth: "M 172,195 Q 200,178 228,195",
+    label: "...", glow: "#475569"
+  },
+  love: {
+    eyeRx: 18, eyeRy: 18, pupilR: 0, pupilOffY: 0,
+    eyeStyle: "heart",
+    mouth: "M 165,175 Q 200,212 235,175",
+    label: "♥", glow: "#f43f5e",
+    noBlink: true
+  },
+  alert: {
+    eyeRx: 22, eyeRy: 22, pupilR: 4, pupilOffY: 0,
+    mouth: "M 185,170 L 215,170",
+    label: "alert", glow: "#ef4444"
+  },
+  working: {
+    eyeRx: 15, eyeRy: 12, pupilR: 5, pupilOffY: 2,
+    eyeStyle: "working",
+    mouth: "M 182,186 L 218,186",
+    label: "working hard...", glow: "#3b82f6"
+  }
+};
+
+const idlePool = ['idle', 'happy', 'sleepy', 'bored', 'thinking', 'cool', 'amused'];
+
+let currentExpression = 'idle';
+let currentExprData = expressions.idle;
+let idleTimer = null;
+let isIdle = true;
+let manualOverrideTimeout = null;
+let blinkTimer = null;
+let isBlinking = false;
+
+// DOM
+const svgEl = document.getElementById('face-svg');
+const labelEl = document.getElementById('label');
+const glowEl = document.getElementById('glow');
+const mouthEl = document.getElementById('mouth');
+const eyeLeftGroup = document.getElementById('eye-left');
+const eyeRightGroup = document.getElementById('eye-right');
+
+// ── SVG Helpers ──
+function svg(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function drawNormalEye(group, rx, ry, pr, offX, offY) {
+  group.appendChild(svg('ellipse', { class: 'eye-shape', cx: 0, cy: 0, rx, ry }));
+  if (pr > 0) {
+    group.appendChild(svg('circle', { class: 'pupil', cx: offX, cy: offY, r: pr }));
+  }
+  group.appendChild(svg('ellipse', { class: 'eye-lid', cx: 0, cy: 0, rx: rx + 3, ry: 0, fill: '#d4b8f0' }));
+}
+
+function drawArcEye(group, droopy) {
+  const d = droopy
+    ? "M -16,2 Q 0,12 16,2"
+    : "M -16,0 Q 0,-14 16,0";
+  group.appendChild(svg('path', {
+    d, fill: 'none', stroke: '#4a3f5c', 'stroke-width': 3.5, 'stroke-linecap': 'round'
+  }));
+}
+
+function drawCoolEye(group) {
+  group.appendChild(svg('rect', { x: -22, y: -8, width: 44, height: 16, rx: 3, fill: '#4a3f5c', opacity: 0.9 }));
+  group.appendChild(svg('rect', { x: -19, y: -5, width: 38, height: 10, rx: 2, fill: '#2d2640' }));
+}
+
+function drawHeartEye(group) {
+  group.appendChild(svg('path', {
+    d: "M 0,10 C -5,0 -18,-5 -18,-14 C -18,-22 -8,-26 0,-16 C 8,-26 18,-22 18,-14 C 18,-5 5,0 0,10 Z",
+    fill: '#f43f5e', stroke: 'none'
+  }));
+}
+
+function addSparkle(group) {
+  group.appendChild(svg('path', {
+    d: "M 12,-16 L 14,-10 L 20,-12 L 15,-7 L 20,-2 L 14,-5 L 12,2 L 10,-5 L 4,-2 L 9,-7 L 4,-12 L 10,-10 Z",
+    fill: '#fbbf24', stroke: 'none', opacity: 0.9
+  }));
+}
+
+function addBrow(group, dir) {
+  group.appendChild(svg('line', {
+    x1: -14, y1: -28 + dir * 3, x2: 14, y2: -28 - dir * 3,
+    stroke: '#4a3f5c', 'stroke-width': 3, 'stroke-linecap': 'round'
+  }));
+}
+
+function addFurrowedBrow(group, dir) {
+  group.appendChild(svg('line', {
+    x1: -16, y1: -24 + dir * 5, x2: 14, y2: -26 - dir * 5,
+    stroke: '#4a3f5c', 'stroke-width': 3.5, 'stroke-linecap': 'round'
+  }));
+  group.appendChild(svg('line', {
+    x1: dir * 14, y1: -28, x2: dir * 12, y2: -22,
+    stroke: '#4a3f5c', 'stroke-width': 1.5, 'stroke-linecap': 'round', opacity: 0.5
+  }));
+}
+
+function addLid(group, rx, ry) {
+  group.appendChild(svg('ellipse', {
+    class: 'eye-lid-half', cx: 0, cy: -ry * 0.3, rx, ry, fill: '#d4b8f0'
+  }));
+}
+
+// ── Draw Expression ──
+function drawExpression(name) {
+  const expr = expressions[name];
+  if (!expr) return;
+  currentExprData = expr;
+
+  const ox = expr.pupilOffX || 0;
+  const oy = expr.pupilOffY || 0;
+
+  eyeLeftGroup.innerHTML = '';
+  eyeRightGroup.innerHTML = '';
+
+  const style = expr.eyeStyle || 'normal';
+
+  if (style === 'happy') {
+    drawArcEye(eyeLeftGroup, false);
+    drawArcEye(eyeRightGroup, false);
+  } else if (style === 'sleepy') {
+    drawArcEye(eyeLeftGroup, true);
+    drawArcEye(eyeRightGroup, true);
+  } else if (style === 'halfopen') {
+    drawNormalEye(eyeLeftGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    drawNormalEye(eyeRightGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    addLid(eyeLeftGroup, expr.eyeRx + 2, expr.eyeRy * 0.5);
+    addLid(eyeRightGroup, expr.eyeRx + 2, expr.eyeRy * 0.5);
+  } else if (style === 'cool') {
+    drawCoolEye(eyeLeftGroup);
+    drawCoolEye(eyeRightGroup);
+  } else if (style === 'heart') {
+    drawHeartEye(eyeLeftGroup);
+    drawHeartEye(eyeRightGroup);
+  } else if (style === 'star') {
+    drawNormalEye(eyeLeftGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    drawNormalEye(eyeRightGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    addSparkle(eyeLeftGroup);
+    addSparkle(eyeRightGroup);
+  } else if (style === 'working') {
+    drawNormalEye(eyeLeftGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    drawNormalEye(eyeRightGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    addFurrowedBrow(eyeLeftGroup, -1);
+    addFurrowedBrow(eyeRightGroup, 1);
+    addLid(eyeLeftGroup, expr.eyeRx + 2, expr.eyeRy * 0.4);
+    addLid(eyeRightGroup, expr.eyeRx + 2, expr.eyeRy * 0.4);
+  } else if (style === 'focused') {
+    drawNormalEye(eyeLeftGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    drawNormalEye(eyeRightGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    addBrow(eyeLeftGroup, -1);
+    addBrow(eyeRightGroup, 1);
+  } else if (style === 'confused') {
+    drawNormalEye(eyeLeftGroup, 16, 18, 7, ox, oy);
+    drawNormalEye(eyeRightGroup, 22, 24, 8, ox, oy);
+  } else {
+    drawNormalEye(eyeLeftGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+    drawNormalEye(eyeRightGroup, expr.eyeRx, expr.eyeRy, expr.pupilR, ox, oy);
+  }
+
+  // Mouth
+  mouthEl.setAttribute('d', expr.mouth);
+  if (expr.mouthStyle === 'open') {
+    mouthEl.style.fill = '#4a3f5c';
+    mouthEl.style.stroke = '#4a3f5c';
+  } else {
+    mouthEl.style.fill = 'none';
+    mouthEl.style.stroke = '#4a3f5c';
+  }
+
+  labelEl.textContent = expr.label;
+  glowEl.style.background = expr.glow;
+}
+
+// ── Expression Switching ──
+function setExpression(name, options = {}) {
+  const expr = expressions[name];
+  if (!expr) return;
+
+  const { manual = false, duration = 0 } = options;
+
+  svgEl.classList.add('fading');
+  labelEl.style.opacity = '0';
+
+  setTimeout(() => {
+    currentExpression = name;
+    drawExpression(name);
+    svgEl.classList.remove('fading');
+    labelEl.style.opacity = '1';
+  }, 400);
+
+  if (manual) {
+    isIdle = false;
+    clearTimeout(idleTimer);
+    clearTimeout(manualOverrideTimeout);
+    if (duration > 0) {
+      manualOverrideTimeout = setTimeout(() => {
+        isIdle = true;
+        startIdleCycle();
+        startPupilDrift();
+      }, duration);
+    }
+  }
+}
+
+// ── Idle Cycle ──
+function randomIdleExpression() {
+  let next;
+  do {
+    next = idlePool[Math.floor(Math.random() * idlePool.length)];
+  } while (next === currentExpression && idlePool.length > 1);
+  setExpression(next);
+}
+
+function startIdleCycle() {
+  clearTimeout(idleTimer);
+  function scheduleNext() {
+    const delay = 15000 + Math.random() * 30000;
+    idleTimer = setTimeout(() => {
+      if (isIdle) {
+        randomIdleExpression();
+        scheduleNext();
+      }
+    }, delay);
+  }
+  scheduleNext();
+}
+
+// ── Blink System ──
+function blink() {
+  if (currentExprData.noBlink) return;
+  if (currentExprData.eyeStyle === 'happy' || currentExprData.eyeStyle === 'sleepy') return;
+  if (isBlinking) return;
+  isBlinking = true;
+
+  const lids = document.querySelectorAll('.eye-lid');
+  lids.forEach(lid => {
+    const white = lid.parentElement.querySelector('.eye-shape');
+    if (!white) return;
+    const ry = parseFloat(white.getAttribute('ry')) + 3;
+    lid.setAttribute('ry', ry);
+  });
+
+  setTimeout(() => {
+    lids.forEach(lid => lid.setAttribute('ry', 0));
+    isBlinking = false;
+  }, 120);
+}
+
+function scheduleNextBlink() {
+  const delay = 2500 + Math.random() * 4000;
+  blinkTimer = setTimeout(() => {
+    blink();
+    if (Math.random() < 0.2) setTimeout(() => blink(), 250);
+    scheduleNextBlink();
+  }, delay);
+}
+
+// ── Pupil Drift ──
+function startPupilDrift() {
+  function drift() {
+    if (!isIdle) return;
+    const pupils = document.querySelectorAll('.pupil');
+    const dx = (Math.random() - 0.5) * 6;
+    const dy = (Math.random() - 0.5) * 4;
+    pupils.forEach(p => {
+      p.setAttribute('cx', dx);
+      p.setAttribute('cy', (currentExprData.pupilOffY || 0) + dy);
+    });
+    setTimeout(() => {
+      pupils.forEach(p => {
+        p.setAttribute('cx', currentExprData.pupilOffX || 0);
+        p.setAttribute('cy', currentExprData.pupilOffY || 0);
+      });
+    }, 800 + Math.random() * 1200);
+    setTimeout(drift, 4000 + Math.random() * 6000);
+  }
+  drift();
+}
+
+// ── Speaking Animation ──
+let isSpeaking = false;
+let talkAnimFrame = null;
+
+const mouthShapes = [
+  "M 180,180 Q 200,196 220,180",
+  "M 172,177 Q 200,208 228,177",
+  "M 178,180 Q 200,192 222,180",
+  "M 185,182 Q 200,194 215,182",
+  "M 168,175 Q 200,212 232,175",
+];
+
+function animateTalking() {
+  if (!isSpeaking) {
+    const expr = expressions[currentExpression];
+    if (expr) { mouthEl.setAttribute('d', expr.mouth); mouthEl.style.fill = 'none'; }
+    return;
+  }
+  const shape = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+  mouthEl.setAttribute('d', shape);
+  mouthEl.style.fill = 'none';
+  talkAnimFrame = setTimeout(animateTalking, 80 + Math.random() * 100);
+}
+
+// ── Subtitle ──
+const subtitleEl = document.getElementById('subtitle');
+let subtitleTimeout = null;
+let subtitleTypingTimer = null;
+
+function cancelSubtitle() {
+  clearTimeout(subtitleTimeout);
+  clearTimeout(subtitleTypingTimer);
+  subtitleEl.classList.remove('visible');
+  subtitleEl.textContent = '';
+}
+
+function showSubtitle(text, durationMs) {
+  cancelSubtitle();
+  if (!text) return;
+  const chars = [...text];
+  const charDelay = Math.max((durationMs * 0.9) / chars.length, 30);
+  let i = 0;
+  subtitleEl.textContent = '';
+  subtitleEl.classList.add('visible');
+  function typeNext() {
+    if (i < chars.length) {
+      subtitleEl.textContent += chars[i++];
+      subtitleTypingTimer = setTimeout(typeNext, charDelay);
+    } else {
+      subtitleTimeout = setTimeout(() => subtitleEl.classList.remove('visible'), 2000);
+    }
+  }
+  typeNext();
+}
+
+// ══════════════════════════════════════════════
+//  Public API — window.face
+// ══════════════════════════════════════════════
+window.face = {
+  /** Set expression by name. Options: duration (ms) to auto-return to idle */
+  set(name, duration) {
+    setExpression(name, { manual: true, duration: duration || 0 });
+  },
+  /** Return to idle cycle */
+  idle() {
+    isIdle = true;
+    startIdleCycle();
+    startPupilDrift();
+  },
+  /** List all expression names */
+  list() {
+    return Object.keys(expressions);
+  },
+  /** Get current expression name */
+  current() {
+    return currentExpression;
+  },
+  /** Play talk animation for given duration (ms) */
+  talk(durationMs) {
+    isSpeaking = true;
+    animateTalking();
+    setTimeout(() => {
+      isSpeaking = false;
+      clearTimeout(talkAnimFrame);
+      const expr = expressions[currentExpression];
+      if (expr) { mouthEl.setAttribute('d', expr.mouth); mouthEl.style.fill = 'none'; }
+    }, durationMs || 3000);
+  },
+  /** Stop talk animation */
+  stop() {
+    isSpeaking = false;
+    clearTimeout(talkAnimFrame);
+    const expr = expressions[currentExpression];
+    if (expr) { mouthEl.setAttribute('d', expr.mouth); mouthEl.style.fill = 'none'; }
+  },
+  /** Show typed subtitle text */
+  subtitle(text, durationMs) {
+    showSubtitle(text, durationMs || 5000);
+  },
+  /** Get expressions config (for extending) */
+  expressions
+};
+
+// ── Click to cycle expressions (demo) ──
+let demoIndex = 0;
+const allNames = Object.keys(expressions);
+document.body.addEventListener('click', () => {
+  demoIndex = (demoIndex + 1) % allNames.length;
+  face.set(allNames[demoIndex], 5000);
+});
+
+// ── Init ──
+drawExpression('idle');
+startIdleCycle();
+scheduleNextBlink();
+startPupilDrift();
+</script>
+</body>
+</html>
