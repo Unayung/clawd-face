@@ -606,12 +606,14 @@ window.face = {
 };
 
 // ── Click to cycle expressions (demo) ──
-let demoIndex = 0;
-const allNames = Object.keys(expressions);
-document.body.addEventListener('click', () => {
-  demoIndex = (demoIndex + 1) % allNames.length;
-  face.set(allNames[demoIndex], 5000);
-});
+if (!window._skipClickDemo) {
+  let demoIndex = 0;
+  const allNames = Object.keys(expressions);
+  document.body.addEventListener('click', () => {
+    demoIndex = (demoIndex + 1) % allNames.length;
+    face.set(allNames[demoIndex], 5000);
+  });
+}
 
 // ── Init ──
 drawExpression('idle');

@@ -165,6 +165,80 @@ The face uses CSS custom colors. Key values in the `<style>` block:
 - Lid color: `fill: '#d4b8f0'` in eye drawing functions
 - Label color: `#label { color: #8a7aaa }`
 
+## Connecting to Clawdbot
+
+Clawd Face comes with a built-in integration for [Clawdbot](https://github.com/clawdbot/clawdbot) — an AI agent gateway.
+
+### Quick Setup
+
+1. Have a running Clawdbot instance ([install guide](https://docs.clawd.bot))
+2. Open the example with your gateway details:
+
+```
+example-clawdbot.html?gw=ws://localhost:18789&token=YOUR_TOKEN
+```
+
+That's it. The face will connect, and you can chat via the input bar.
+
+### What Happens Automatically
+
+When connected to Clawdbot, the face:
+
+- 🤔 Shows **thinking** when you send a message
+- 🔧 Shows **working/investigating/focused** when the agent uses tools
+- 😊 Infers expression from response content (happy, amused, love, etc.)
+- 💬 Displays response as typed subtitle
+- 😕 Shows **confused** on errors
+
+### Using `clawdbot.js` in Your Own Page
+
+```html
+<script src="clawdbot.js"></script>
+<script>
+  const bot = new ClawdbotFace({
+    gatewayUrl: 'ws://localhost:18789',
+    token: 'your-token',
+    sessionKey: 'face',
+
+    // Optional callbacks
+    onConnect: () => console.log('Connected!'),
+    onMessage: (text) => console.log('Response:', text),
+    onToolUse: (tools) => console.log('Tools:', tools),
+
+    // Auto-map agent events to face expressions (default: true)
+    autoExpressions: true,
+  });
+
+  bot.connect();
+  bot.send('Hello!');
+</script>
+```
+
+### Configuration Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `gatewayUrl` | `ws://localhost:18789` | Clawdbot gateway WebSocket URL |
+| `token` | `''` | Gateway auth token |
+| `sessionKey` | `'face'` | Session key for this device |
+| `clientId` | `'clawd-face'` | Client identifier |
+| `locale` | `'en'` | Locale for the session |
+| `autoExpressions` | `true` | Auto-map events to face expressions |
+| `onConnect` | `null` | Called when connected |
+| `onDisconnect` | `null` | Called when disconnected |
+| `onMessage` | `null` | Called with final response `(text, payload)` |
+| `onDelta` | `null` | Called with streaming chunks `(text, payload)` |
+| `onToolUse` | `null` | Called when agent uses tools `(toolNames, payload)` |
+| `onError` | `null` | Called on errors `(errorMessage)` |
+
+### Files
+
+| File | Description |
+|------|-------------|
+| `index.html` | Standalone face — no dependencies, just open it |
+| `clawdbot.js` | Clawdbot gateway integration module |
+| `example-clawdbot.html` | Working example with chat input |
+
 ## Browser Support
 
 Works in all modern browsers. Tested on:

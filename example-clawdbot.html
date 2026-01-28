@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#e0c3fc">
+<title>Clawd Face + Clawdbot</title>
+</head>
+<body>
+
+<!-- Load the face (creates window.face) -->
+<script>
+  // Prevent the click-to-cycle demo from the base file
+  window._skipClickDemo = true;
+</script>
+
+<!-- We inline the face by loading index.html in an iframe, or just copy the core -->
+<!-- For simplicity, this example assumes index.html is in the same directory -->
+
+<!-- Status indicator -->
+<div id="bot-status" style="
+  position: fixed; top: 1rem; right: 1rem; z-index: 100;
+  padding: 0.4em 1em; border-radius: 1em;
+  font-family: monospace; font-size: 0.85rem;
+  background: rgba(255,255,255,0.7); color: #8a7aaa;
+">Disconnected</div>
+
+<!-- Chat input bar -->
+<div id="chat-bar" style="
+  position: fixed; bottom: 0; left: 0; right: 0;
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.8rem 1.2rem;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+  border-top: 1px solid rgba(142,120,190,0.2);
+">
+  <input id="chat-input" type="text" placeholder="Talk to Clawdbot..."
+    autocomplete="off" enterkeyhint="send"
+    style="
+      flex: 1; background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(142,120,190,0.3);
+      border-radius: 1.5rem; padding: 0.7rem 1.2rem;
+      color: #4a3f5c; font-family: monospace;
+      font-size: 1rem; outline: none;
+    " />
+  <button id="send-btn" style="
+    width: 42px; height: 42px; border-radius: 50%; border: none;
+    background: rgba(142,120,190,0.2); color: #7a6a9a;
+    font-size: 1.2rem; cursor: pointer;
+  ">➤</button>
+</div>
+
+<!-- Load Clawdbot integration -->
+<script src="clawdbot.js"></script>
+
+<script>
+// ── Configuration ──
+// Set these to match your Clawdbot instance
+const CONFIG = {
+  gatewayUrl: 'ws://localhost:18789',  // Your Clawdbot gateway URL
+  token: '',                            // Your gateway auth token
+  sessionKey: 'face',                   // Session key for this device
+};
+
+// Read from URL params (convenient for testing)
+const params = new URLSearchParams(window.location.search);
+if (params.get('gw'))    CONFIG.gatewayUrl = params.get('gw');
+if (params.get('token')) CONFIG.token = params.get('token');
+if (params.get('session')) CONFIG.sessionKey = params.get('session');
+
+// ── Connect ──
+const statusEl = document.getElementById('bot-status');
+const chatInput = document.getElementById('chat-input');
+const sendBtn = document.getElementById('send-btn');
+
+const bot = new ClawdbotFace({
+  gatewayUrl: CONFIG.gatewayUrl,
+  token: CONFIG.token,
+  sessionKey: CONFIG.sessionKey,
+
+  onConnect: () => {
+    statusEl.textContent = 'Connected ✓';
+    statusEl.style.color = '#59c97a';
+  },
+
+  onDisconnect: () => {
+    statusEl.textContent = 'Disconnected';
+    statusEl.style.color = '#e85d72';
+  },
+
+  onMessage: (text, payload) => {
+    console.log('[bot] Response:', text);
+    chatInput.disabled = false;
+    sendBtn.disabled = false;
+  },
+
+  onDelta: (text) => {
+    // Streaming text — could show in a live preview
+  },
+
+  onToolUse: (toolNames) => {
+    console.log('[bot] Using tools:', toolNames);
+  },
+
+  onError: (error) => {
+    console.error('[bot] Error:', error);
+    chatInput.disabled = false;
+    sendBtn.disabled = false;
+  },
+});
+
+// Only connect if token is provided
+if (CONFIG.token) {
+  bot.connect();
+} else {
+  statusEl.textContent = 'No token — add ?token=YOUR_TOKEN to URL';
+  statusEl.style.color = '#f97316';
+}
+
+// ── Chat UI ──
+function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text || !bot.connected) return;
+  chatInput.value = '';
+  chatInput.disabled = true;
+  sendBtn.disabled = true;
+  bot.send(text);
+}
+
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+sendBtn.addEventListener('click', sendMessage);
+</script>
+
+</body>
+</html>
