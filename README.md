@@ -1,6 +1,6 @@
-# 🤖 Clawd Face
+# 🤖 Clawd Face — Speak to your bot, face to face
 
-**Speak to your clawdbot — face to face.**
+**[English](README.md)** | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 An expressive SVG face engine for AI agents. Zero dependencies. Drop-in module. Just include the script.
 

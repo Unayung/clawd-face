@@ -1,0 +1,246 @@
+# 🤖 Clawd Face — 與你的機器人面對面交談
+
+[English](README.md) | **[繁體中文](README.zh-TW.md)** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
+
+專為 AI 助理設計的表情豐富 SVG 臉部引擎。零依賴。即插即用。只需引入腳本即可。
+
+![Clawd Face](https://img.shields.io/badge/dependencies-zero-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
+
+## 快速開始
+
+### 單純看臉（不需伺服器）
+
+```bash
+open index.html
+```
+
+點擊任意位置切換表情。就這樣。
+
+### 加入語音功能（TTS + 語音辨識）
+
+```bash
+# 1. 複製專案
+git clone https://github.com/user/clawd-face.git
+cd clawd-face
+
+# 2. 設定你的 OpenAI API 金鑰
+cp .env.example .env
+# 編輯 .env: OPENAI_API_KEY=sk-你的金鑰
+
+# 3. 執行
+npm start
+# → http://localhost:3737
+```
+
+不需要 `npm install` — 零依賴。
+
+### iOS/手機版（麥克風需要 HTTPS）
+
+```bash
+npm run gen-certs   # 產生自簽憑證
+npm start           # HTTPS 在 port 3738
+```
+
+### 嵌入你的頁面
+
+```html
+<script src="face.js"></script>
+<script>
+  face.set('happy', 5000);
+</script>
+```
+
+模組會自動注入 CSS、SVG 和 DOM。不需額外設定。
+
+### 自訂容器
+
+```html
+<div id="my-face" style="width: 400px; height: 300px;"></div>
+<script src="face.js" data-container="my-face"></script>
+```
+
+## 表情
+
+內建 16 種表情，各有獨特的眼睛樣式、嘴型和環境光暈：
+
+| 表情 | 標籤 | 說明 |
+|-----|------|------|
+| `idle` | idle | 預設休息狀態 |
+| `happy` | happy | 瞇眼笑、大笑容 |
+| `thinking` | thinking | 眼睛看向旁邊 |
+| `investigating` | investigating | 睜大眼、扁嘴 |
+| `sleepy` | zzz... | 下垂弧形眼 |
+| `bored` | bored | 半閉眼 |
+| `amused` | haha | 瞇眼、超大笑容 |
+| `surprised` | !? | 大圓眼、張嘴 |
+| `focused` | working | 皺眉、專注 |
+| `cool` | cool | 墨鏡 😎 |
+| `confused` | huh? | 不對稱眼睛 |
+| `excited` | !! | 星星眼、大笑 |
+| `sad` | ... | 下垂瞳孔、皺眉 |
+| `love` | ♥ | 愛心眼 |
+| `alert` | alert | 睜大眼、緊繃嘴 |
+| `working` | working hard... | 皺眉、專注 |
+
+## JavaScript API
+
+透過 `window.face` 程式化控制臉部：
+
+```js
+// 設定表情（5 秒後回到 idle）
+face.set('happy', 5000);
+
+// 永久設定（直到改變）
+face.set('cool');
+
+// 回到 idle 循環
+face.idle();
+
+// 嘴巴說話動畫（3 秒）
+face.talk(3000);
+
+// 停止說話
+face.stop();
+
+// 顯示打字字幕
+face.subtitle('你好世界！', 4000);
+
+// 列出所有表情
+face.list();
+// → ['idle', 'happy', 'thinking', ...]
+
+// 取得當前表情
+face.current();
+// → 'happy'
+
+// 存取表情定義
+face.expressions;
+```
+
+## 功能特色
+
+- 🎨 **16 種表情** 各有獨特眼睛樣式（愛心、星星、墨鏡等）
+- 👁️ **自然眨眼** 隨機間隔，偶爾連續眨兩次
+- 👀 **瞳孔漂移** — 閒置時眼睛會微微遊移
+- 🫁 **呼吸動畫** — 輕柔的縮放脈動
+- 🌈 **環境光暈** — 背景顏色隨表情變化
+- 💬 **字幕系統** — 打字機風格文字疊加
+- 🗣️ **說話動畫** — 隨機嘴型配合語音同步
+- 🔄 **閒置循環** — 無控制時自動輪換表情
+- 📱 **行動裝置友善** — 響應式、全螢幕、禁止選取
+
+## 連接 Clawdbot
+
+Clawd Face 內建 [Clawdbot](https://github.com/clawdbot/clawdbot) 整合 — 一個 AI 助理閘道。
+
+### 快速設定
+
+1. 執行 Clawdbot 實例（[安裝指南](https://docs.clawd.bot)）
+2. 開啟範例並填入閘道資訊：
+
+```
+example-clawdbot.html?gw=ws://localhost:18789&token=你的TOKEN
+```
+
+完成。臉部會連接，你可以透過輸入欄聊天。
+
+### 自動行為
+
+連接 Clawdbot 後，臉部會：
+
+- 🤔 發送訊息時顯示 **thinking**
+- 🔧 助理使用工具時顯示 **working/investigating/focused**
+- 😊 從回應內容推斷表情（happy、amused、love 等）
+- 💬 以打字字幕顯示回應
+- 😕 錯誤時顯示 **confused**
+
+### 設定選項
+
+| 選項 | 預設值 | 說明 |
+|-----|-------|------|
+| `gatewayUrl` | `ws://localhost:18789` | Clawdbot 閘道 WebSocket URL |
+| `token` | `''` | 閘道認證 token |
+| `sessionKey` | `'face'` | 此裝置的 session key |
+| `clientId` | `'clawd-face'` | 客戶端識別碼 |
+| `locale` | `'en'` | 語系 |
+| `autoExpressions` | `true` | 自動映射事件到表情 |
+
+### 工具表情映射
+
+啟用 `autoExpressions` 時，工具使用會觸發對應表情：
+
+| 工具模式 | 表情 | 持續時間 |
+|---------|------|---------|
+| `web_search`、`fetch` | `investigating` | 10 秒 |
+| `exec`、`bash`、`shell` | `working` | 10 秒 |
+| `read`、`file`、`glob`、`grep` | `thinking` | 8 秒 |
+| `write`、`edit`、`create` | `focused` | 10 秒 |
+| `tts`、`speak`、`audio` | `happy` | 5 秒 |
+| 其他工具 | `focused` | 8 秒 |
+
+## 執行伺服器
+
+內含的 `server.js` 提供語音功能和即時表情推送。
+
+### 快速開始
+
+```bash
+# 不需安裝 — 零依賴，使用 Node 內建模組
+
+# 不含語音功能執行
+node server.js
+
+# 含 OpenAI TTS/STT 執行
+OPENAI_API_KEY=sk-xxx node server.js
+
+# 或使用 .env 檔案
+cp .env.example .env
+# 編輯 .env 填入 API 金鑰
+node server.js
+```
+
+伺服器預設在 `http://localhost:3737` 執行。
+
+### API 端點
+
+| 端點 | 方法 | 說明 |
+|-----|------|------|
+| `/` | GET | 提供 `index.html` |
+| `/expression-stream` | GET | 即時表情推送的 SSE 串流 |
+| `/expression` | POST | 設定表情 `{ expression, duration, sessionKey? }` |
+| `/speak` | POST | OpenAI TTS `{ text, voice? }` → MP3 |
+| `/transcribe` | POST | Whisper STT（音訊 body）→ `{ text }` |
+| `/media-proxy` | GET | 代理本地音訊檔 `?file=/path/to/audio.mp3` |
+| `/health` | GET | 健康檢查 `{ ok, sseClients, hasOpenAI }` |
+
+### 環境變數
+
+| 變數 | 預設值 | 說明 |
+|-----|-------|------|
+| `OPENAI_API_KEY` | — | `/speak` 和 `/transcribe` 必需 |
+| `PORT` | `3737` | HTTP 連接埠 |
+| `HTTPS_PORT` | `3738` | HTTPS 連接埠（如有憑證） |
+| `HOST` | `0.0.0.0` | 綁定位址 |
+
+## 檔案說明
+
+| 檔案 | 說明 |
+|-----|------|
+| `face.js` | 核心臉部引擎 — 獨立運作，自動注入所有內容 |
+| `index.html` | 精簡展示 — 載入 `face.js`，點擊切換表情 |
+| `clawdbot.js` | Clawdbot 閘道整合模組 |
+| `example-clawdbot.html` | 含聊天輸入的完整範例 |
+| `server.js` | Node.js 伺服器（SSE、TTS、STT） |
+| `.env.example` | 環境設定範例 |
+
+## 瀏覽器支援
+
+支援所有現代瀏覽器。測試於：
+- Chrome / Edge
+- Firefox
+- Safari（macOS 和 iOS）
+- 行動版 Safari 和 Chrome
+
+## 授權
+
+MIT — 隨你怎麼用。
