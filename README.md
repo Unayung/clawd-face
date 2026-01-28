@@ -41,23 +41,92 @@ npm run gen-certs   # Generate self-signed certificate
 npm start           # HTTPS on port 3738
 ```
 
-### Embed in Your Page
+### Embed in Your Own Website
+
+Copy `face.js` to your project and add to any HTML page:
 
 ```html
-<script src="face.js"></script>
-<script>
-  face.set('happy', 5000);
-</script>
+<!-- your-page.html -->
+<!DOCTYPE html>
+<html>
+<head><title>My Page</title></head>
+<body>
+  <h1>Welcome</h1>
+
+  <!-- Just add this line -->
+  <script src="face.js"></script>
+
+  <script>
+    // Control the face
+    face.set('happy', 5000);
+  </script>
+</body>
+</html>
 ```
 
-The module self-injects CSS, SVG, and DOM. No setup needed.
+The module self-injects its own CSS, SVG, and DOM. No setup needed.
 
 ### Custom Container
 
+By default, the face appends to `<body>`. To place it in a specific element:
+
 ```html
-<div id="my-face" style="width: 400px; height: 300px;"></div>
-<script src="face.js" data-container="my-face"></script>
+<div id="avatar-area" style="width: 400px; height: 300px;"></div>
+<script src="face.js" data-container="avatar-area"></script>
 ```
+
+## Architecture
+
+Clawd Face has a modular design. Use only what you need:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           Browser                               │
+│                                                                 │
+│   ┌──────────┐       ┌──────────────┐                          │
+│   │ face.js  │ <──── │ clawdbot.js  │                          │
+│   │          │       │              │                          │
+│   │  - SVG   │       │  - WebSocket │                          │
+│   │  - CSS   │       │  - Events    │                          │
+│   │  - API   │       │  - Auto-expr │                          │
+│   └──────────┘       └──────┬───────┘                          │
+│        ↑                    │                                   │
+│        │ SSE                │ WebSocket                         │
+└────────│────────────────────│───────────────────────────────────┘
+         │                    │
+         ▼                    ▼
+┌─────────────────┐    ┌─────────────────┐
+│   server.js     │    │    Clawdbot     │
+│                 │    │    Gateway      │
+│  - SSE push     │    │                 │
+│  - TTS (OpenAI) │    │  - AI agent     │
+│  - STT (Whisper)│    │  - Tool calls   │
+└─────────────────┘    └─────────────────┘
+        ↑
+        │ POST /expression
+┌─────────────────┐
+│   Your Agent    │
+│   (any backend) │
+└─────────────────┘
+```
+
+### Usage Modes
+
+| Mode | Files Needed | Description |
+|------|--------------|-------------|
+| **A. Display only** | `face.js` | Just the face, control via JS |
+| **B. + Clawdbot** | `face.js` + `clawdbot.js` | Connect to Clawdbot gateway, auto-expressions |
+| **C. + Your backend** | `face.js` + `server.js` | Push expressions via SSE, add TTS/STT |
+
+### What Each File Does
+
+| File | Role | Network |
+|------|------|---------|
+| `face.js` | Face rendering + `window.face` API | None |
+| `clawdbot.js` | Clawdbot gateway client, calls `face.set()` on events | WebSocket to gateway |
+| `server.js` | SSE endpoint + TTS/STT via OpenAI | HTTP/SSE |
+
+**Note:** `clawdbot.js` connects directly to Clawdbot Gateway — it does NOT go through `server.js`. They are parallel integration options.
 
 ## Expressions
 

@@ -41,23 +41,92 @@ npm run gen-certs   # 自己署名証明書を生成
 npm start           # HTTPS は port 3738
 ```
 
-### ページに埋め込む
+### 自分のウェブサイトに埋め込む
+
+`face.js` をプロジェクトにコピーし、任意のHTMLページに追加：
 
 ```html
-<script src="face.js"></script>
-<script>
-  face.set('happy', 5000);
-</script>
+<!-- your-page.html -->
+<!DOCTYPE html>
+<html>
+<head><title>マイページ</title></head>
+<body>
+  <h1>ようこそ</h1>
+
+  <!-- この1行を追加するだけ -->
+  <script src="face.js"></script>
+
+  <script>
+    // フェイスを制御
+    face.set('happy', 5000);
+  </script>
+</body>
+</html>
 ```
 
 モジュールがCSS、SVG、DOMを自動注入。設定不要。
 
 ### カスタムコンテナ
 
+デフォルトでは、フェイスは `<body>` に追加されます。特定の要素に配置するには：
+
 ```html
-<div id="my-face" style="width: 400px; height: 300px;"></div>
-<script src="face.js" data-container="my-face"></script>
+<div id="avatar-area" style="width: 400px; height: 300px;"></div>
+<script src="face.js" data-container="avatar-area"></script>
 ```
+
+## アーキテクチャ
+
+Clawd Face はモジュラー設計。必要な部分だけ使用：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         ブラウザ                                 │
+│                                                                 │
+│   ┌──────────┐       ┌──────────────┐                          │
+│   │ face.js  │ <──── │ clawdbot.js  │                          │
+│   │          │       │              │                          │
+│   │  - SVG   │       │  - WebSocket │                          │
+│   │  - CSS   │       │  - イベント   │                          │
+│   │  - API   │       │  - 自動表情   │                          │
+│   └──────────┘       └──────┬───────┘                          │
+│        ↑                    │                                   │
+│        │ SSE                │ WebSocket                         │
+└────────│────────────────────│───────────────────────────────────┘
+         │                    │
+         ▼                    ▼
+┌─────────────────┐    ┌─────────────────┐
+│   server.js     │    │    Clawdbot     │
+│                 │    │    Gateway      │
+│  - SSE プッシュ  │    │                 │
+│  - TTS (OpenAI) │    │  - AIエージェント│
+│  - STT (Whisper)│    │  - ツール呼出   │
+└─────────────────┘    └─────────────────┘
+        ↑
+        │ POST /expression
+┌─────────────────┐
+│ あなたのAgent   │
+│ (任意のバックエンド)│
+└─────────────────┘
+```
+
+### 使用モード
+
+| モード | 必要なファイル | 説明 |
+|-------|--------------|------|
+| **A. 表示のみ** | `face.js` | フェイスのみ、JSで制御 |
+| **B. + Clawdbot** | `face.js` + `clawdbot.js` | Clawdbotゲートウェイに接続、自動表情 |
+| **C. + 独自バックエンド** | `face.js` + `server.js` | SSEで表情プッシュ、TTS/STT追加 |
+
+### 各ファイルの役割
+
+| ファイル | 役割 | ネットワーク |
+|---------|------|------------|
+| `face.js` | フェイス描画 + `window.face` API | なし |
+| `clawdbot.js` | Clawdbotゲートウェイクライアント、イベント時に `face.set()` を呼出 | WebSocket to gateway |
+| `server.js` | SSEエンドポイント + OpenAI経由のTTS/STT | HTTP/SSE |
+
+**注意：** `clawdbot.js` は Clawdbot Gateway に直接接続 — `server.js` を経由しません。並列の統合オプションです。
 
 ## 表情
 

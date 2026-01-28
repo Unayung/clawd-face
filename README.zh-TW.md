@@ -41,23 +41,92 @@ npm run gen-certs   # 產生自簽憑證
 npm start           # HTTPS 在 port 3738
 ```
 
-### 嵌入你的頁面
+### 嵌入你自己的網站
+
+複製 `face.js` 到你的專案，然後加到任何 HTML 頁面：
 
 ```html
-<script src="face.js"></script>
-<script>
-  face.set('happy', 5000);
-</script>
+<!-- your-page.html -->
+<!DOCTYPE html>
+<html>
+<head><title>我的頁面</title></head>
+<body>
+  <h1>歡迎</h1>
+
+  <!-- 只要加這一行 -->
+  <script src="face.js"></script>
+
+  <script>
+    // 控制臉部
+    face.set('happy', 5000);
+  </script>
+</body>
+</html>
 ```
 
 模組會自動注入 CSS、SVG 和 DOM。不需額外設定。
 
 ### 自訂容器
 
+預設情況下，臉部會附加到 `<body>`。若要放在特定元素內：
+
 ```html
-<div id="my-face" style="width: 400px; height: 300px;"></div>
-<script src="face.js" data-container="my-face"></script>
+<div id="avatar-area" style="width: 400px; height: 300px;"></div>
+<script src="face.js" data-container="avatar-area"></script>
 ```
+
+## 架構
+
+Clawd Face 採用模組化設計。只用你需要的部分：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           瀏覽器                                 │
+│                                                                 │
+│   ┌──────────┐       ┌──────────────┐                          │
+│   │ face.js  │ <──── │ clawdbot.js  │                          │
+│   │          │       │              │                          │
+│   │  - SVG   │       │  - WebSocket │                          │
+│   │  - CSS   │       │  - 事件監聽   │                          │
+│   │  - API   │       │  - 自動表情   │                          │
+│   └──────────┘       └──────┬───────┘                          │
+│        ↑                    │                                   │
+│        │ SSE                │ WebSocket                         │
+└────────│────────────────────│───────────────────────────────────┘
+         │                    │
+         ▼                    ▼
+┌─────────────────┐    ┌─────────────────┐
+│   server.js     │    │    Clawdbot     │
+│                 │    │    Gateway      │
+│  - SSE 推送     │    │                 │
+│  - TTS (OpenAI) │    │  - AI 助理      │
+│  - STT (Whisper)│    │  - 工具呼叫     │
+└─────────────────┘    └─────────────────┘
+        ↑
+        │ POST /expression
+┌─────────────────┐
+│   你的 Agent    │
+│   (任何後端)     │
+└─────────────────┘
+```
+
+### 使用模式
+
+| 模式 | 需要的檔案 | 說明 |
+|-----|-----------|------|
+| **A. 純展示** | `face.js` | 只有臉，用 JS 控制 |
+| **B. + Clawdbot** | `face.js` + `clawdbot.js` | 連接 Clawdbot 閘道，自動表情 |
+| **C. + 自己的後端** | `face.js` + `server.js` | 用 SSE 推表情，加 TTS/STT |
+
+### 各檔案職責
+
+| 檔案 | 角色 | 網路 |
+|-----|------|------|
+| `face.js` | 臉部渲染 + `window.face` API | 無 |
+| `clawdbot.js` | Clawdbot 閘道客戶端，收到事件時呼叫 `face.set()` | WebSocket 到閘道 |
+| `server.js` | SSE 端點 + 透過 OpenAI 的 TTS/STT | HTTP/SSE |
+
+**注意：** `clawdbot.js` 直接連到 Clawdbot Gateway — 不經過 `server.js`。它們是平行的整合選項。
 
 ## 表情
 
