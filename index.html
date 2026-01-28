@@ -158,7 +158,7 @@
 </div>
 
 <!-- Demo hint (shown when no features) -->
-<div id="demo-hint">tap anywhere to cycle expressions</div>
+<div id="demo-hint">tap anywhere to cycle expressions · press F for fullscreen</div>
 
 <!-- Clawdbot integration -->
 <script src="clawdbot.js"></script>
@@ -620,6 +620,44 @@
     if (e.code === 'Space' && (spaceHeld || isRecording)) {
       e.preventDefault();
       return;
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Fullscreen: Press F to toggle ──
+  // ══════════════════════════════════════════════════════════════════
+  function goFullscreen() {
+    const el = document.documentElement;
+    const req = el.requestFullscreen
+      || el.webkitRequestFullscreen
+      || el.msRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
+  }
+
+  function exitFullscreen() {
+    const exit = document.exitFullscreen
+      || document.webkitExitFullscreen
+      || document.msExitFullscreen;
+    if (exit) exit.call(document).catch(() => {});
+  }
+
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function toggleFullscreen() {
+    if (isFullscreen()) {
+      exitFullscreen();
+    } else {
+      goFullscreen();
+    }
+  }
+
+  // F key toggles fullscreen (unless typing in input)
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'f' || e.key === 'F') && document.activeElement !== chatInput) {
+      e.preventDefault();
+      toggleFullscreen();
     }
   });
 
