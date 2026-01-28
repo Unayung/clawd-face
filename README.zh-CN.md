@@ -2,7 +2,7 @@
 
 [English](README.md) | [繁體中文](README.zh-TW.md) | **[简体中文](README.zh-CN.md)** | [日本語](README.ja.md)
 
-专为 AI 助理设计的表情丰富 SVG 脸部引擎。零依赖。即插即用。只需引入脚本即可。
+给你的 [Clawdbot](https://github.com/clawdbot/clawdbot) 或 [Moltbot](https://github.com/moltbot/moltbot) 一张脸。零依赖。即插即用。
 
 ![Clawd Face](https://img.shields.io/badge/dependencies-zero-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 

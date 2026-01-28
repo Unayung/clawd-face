@@ -2,7 +2,7 @@
 
 **[English](README.md)** | [繁體中文](README.zh-TW.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-An expressive SVG face engine for AI agents. Zero dependencies. Drop-in module. Just include the script.
+Give your [Clawdbot](https://github.com/clawdbot/clawdbot) or [Moltbot](https://github.com/moltbot/moltbot) a face. Zero dependencies. Drop-in module.
 
 ![Clawd Face](https://img.shields.io/badge/dependencies-zero-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
