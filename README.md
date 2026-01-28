@@ -39,7 +39,7 @@ No `npm install` needed — zero dependencies. A 🎤 PTT button appears automat
 Add your gateway URL and token as query parameters:
 
 ```
-http://localhost:3737?gw=ws://localhost:18789&token=YOUR_TOKEN
+http://localhost:3737?gw=wss://your-gateway.example.com&token=YOUR_TOKEN
 ```
 
 A chat input bar appears automatically when connected.
@@ -75,7 +75,7 @@ npm start           # HTTPS on port 3738
 
 | Param | Default | Description |
 |---|---|---|
-| `gw` | — | Gateway WebSocket URL (e.g. `ws://localhost:18789`) |
+| `gw` | — | Gateway WebSocket URL (e.g. `wss://your-gateway.example.com`) |
 | `token` | — | Gateway auth token |
 | `session` | `face` | Session key for the chat |
 
@@ -334,10 +334,12 @@ Clawd Face comes with a built-in integration for [Clawdbot](https://github.com/c
 2. Open the example with your gateway details:
 
 ```
-example-clawdbot.html?gw=ws://localhost:18789&token=YOUR_TOKEN
+example-clawdbot.html?gw=wss://your-gateway.example.com&token=YOUR_TOKEN
 ```
 
 That's it. The face will connect, and you can chat via the input bar.
+
+> **Security Note:** Always use `wss://` (secure WebSocket) in production. Only use `ws://` for local development (`ws://localhost:...`).
 
 ### What Happens Automatically
 
@@ -355,7 +357,7 @@ When connected to Clawdbot, the face:
 <script src="clawdbot.js"></script>
 <script>
   const bot = new ClawdbotFace({
-    gatewayUrl: 'ws://localhost:18789',
+    gatewayUrl: 'wss://your-gateway.example.com',
     token: 'your-token',
     sessionKey: 'face',
 
@@ -377,7 +379,7 @@ When connected to Clawdbot, the face:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `gatewayUrl` | `ws://localhost:18789` | Clawdbot gateway WebSocket URL |
+| `gatewayUrl` | `wss://your-gateway.example.com` | Clawdbot gateway WebSocket URL |
 | `token` | `''` | Gateway auth token |
 | `sessionKey` | `'face'` | Session key for this device |
 | `clientId` | `'clawd-face'` | Client identifier |

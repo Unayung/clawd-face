@@ -39,7 +39,7 @@ npm start
 加入 Gateway URL 和 token 作為 query 參數：
 
 ```
-http://localhost:3737?gw=ws://localhost:18789&token=YOUR_TOKEN
+http://localhost:3737?gw=wss://your-gateway.example.com&token=YOUR_TOKEN
 ```
 
 連線成功後會自動出現聊天輸入框。
@@ -75,7 +75,7 @@ npm start           # HTTPS 在 port 3738
 
 | 參數 | 預設值 | 說明 |
 |---|---|---|
-| `gw` | — | Gateway WebSocket URL（例如 `ws://localhost:18789`） |
+| `gw` | — | Gateway WebSocket URL（例如 `wss://your-gateway.example.com`） |
 | `token` | — | Gateway 認證 token |
 | `session` | `face` | 聊天 session key |
 
@@ -246,10 +246,12 @@ Clawd Face 內建 [Clawdbot](https://github.com/clawdbot/clawdbot) 整合 — �
 2. 開啟範例並填入閘道資訊：
 
 ```
-example-clawdbot.html?gw=ws://localhost:18789&token=你的TOKEN
+example-clawdbot.html?gw=wss://your-gateway.example.com&token=你的TOKEN
 ```
 
 完成。臉部會連接，你可以透過輸入欄聊天。
+
+> **安全提示：** 正式環境請使用 `wss://`（安全 WebSocket）。`ws://` 僅限本地開發使用（`ws://localhost:...`）。
 
 ### 自動行為
 
@@ -265,7 +267,7 @@ example-clawdbot.html?gw=ws://localhost:18789&token=你的TOKEN
 
 | 選項 | 預設值 | 說明 |
 |-----|-------|------|
-| `gatewayUrl` | `ws://localhost:18789` | Clawdbot 閘道 WebSocket URL |
+| `gatewayUrl` | `wss://your-gateway.example.com` | Clawdbot 閘道 WebSocket URL |
 | `token` | `''` | 閘道認證 token |
 | `sessionKey` | `'face'` | 此裝置的 session key |
 | `clientId` | `'clawd-face'` | 客戶端識別碼 |

@@ -124,7 +124,8 @@
 // ── Configuration (from URL params or defaults) ──
 const params = new URLSearchParams(window.location.search);
 const CONFIG = {
-  gatewayUrl: params.get('gw') || 'ws://localhost:18789',
+  // Use wss:// for production, ws:// only for local development
+  gatewayUrl: params.get('gw') || '',
   token: params.get('token') || '',
   sessionKey: params.get('session') || 'face',
 };
@@ -178,7 +179,7 @@ const bot = new ClawdbotFace({
 if (CONFIG.token) {
   bot.connect();
 } else {
-  statusEl.textContent = 'Add ?gw=ws://host:port&token=YOUR_TOKEN';
+  statusEl.textContent = 'Add ?gw=wss://your-gateway&token=YOUR_TOKEN';
   statusEl.style.color = '#f97316';
 }
 

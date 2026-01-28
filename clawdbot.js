@@ -8,18 +8,23 @@
  *   <script src="clawdbot.js"></script>
  *   <script>
  *     const bot = new ClawdbotFace({
- *       gatewayUrl: 'ws://localhost:18789',
+ *       gatewayUrl: 'wss://your-gateway.example.com',  // Use wss:// for production
  *       token: 'your-gateway-token',
  *       sessionKey: 'face',
  *     });
  *     bot.connect();
  *     bot.send('Hello!');
  *   </script>
+ *
+ * Security Note:
+ *   Always use wss:// (secure WebSocket) in production.
+ *   ws:// should only be used for local development.
  */
 
 class ClawdbotFace {
   constructor(options = {}) {
-    this.gatewayUrl = options.gatewayUrl || 'ws://localhost:18789';
+    // Default to empty string - user must provide their own gateway URL
+    this.gatewayUrl = options.gatewayUrl || '';
     this.token = options.token || '';
     this.sessionKey = options.sessionKey || 'face';
     this.protocolVersion = 3;

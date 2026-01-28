@@ -39,7 +39,7 @@ npm start
 Gateway URLとtokenをクエリパラメータとして追加：
 
 ```
-http://localhost:3737?gw=ws://localhost:18789&token=YOUR_TOKEN
+http://localhost:3737?gw=wss://your-gateway.example.com&token=YOUR_TOKEN
 ```
 
 接続成功後、チャット入力欄が自動的に表示されます。
@@ -75,7 +75,7 @@ npm start           # HTTPS は port 3738
 
 | パラメータ | デフォルト | 説明 |
 |---|---|---|
-| `gw` | — | Gateway WebSocket URL（例: `ws://localhost:18789`） |
+| `gw` | — | Gateway WebSocket URL（例: `wss://your-gateway.example.com`） |
 | `token` | — | Gateway認証トークン |
 | `session` | `face` | チャットセッションキー |
 
@@ -246,10 +246,12 @@ Clawd Faceには [Clawdbot](https://github.com/clawdbot/clawdbot) 統合が組�
 2. ゲートウェイ情報を入力してサンプルを開く：
 
 ```
-example-clawdbot.html?gw=ws://localhost:18789&token=YOUR_TOKEN
+example-clawdbot.html?gw=wss://your-gateway.example.com&token=YOUR_TOKEN
 ```
 
 完了。フェイスが接続し、入力バーでチャットできます。
+
+> **セキュリティ注意：** 本番環境では `wss://`（セキュアWebSocket）を使用してください。`ws://` はローカル開発専用です（`ws://localhost:...`）。
 
 ### 自動動作
 
@@ -265,7 +267,7 @@ Clawdbot接続時、フェイスは：
 
 | オプション | デフォルト | 説明 |
 |-----------|----------|------|
-| `gatewayUrl` | `ws://localhost:18789` | Clawdbotゲートウェイ WebSocket URL |
+| `gatewayUrl` | `wss://your-gateway.example.com` | Clawdbotゲートウェイ WebSocket URL |
 | `token` | `''` | ゲートウェイ認証トークン |
 | `sessionKey` | `'face'` | このデバイスのセッションキー |
 | `clientId` | `'clawd-face'` | クライアント識別子 |
