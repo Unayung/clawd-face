@@ -23,7 +23,7 @@ class ClawdbotFace {
     this.token = options.token || '';
     this.sessionKey = options.sessionKey || 'face';
     this.protocolVersion = 3;
-    this.clientId = options.clientId || 'clawd-face';
+    this.clientId = options.clientId || 'webchat';
     this.locale = options.locale || 'en';
 
     // Callbacks
@@ -110,9 +110,8 @@ class ClawdbotFace {
 
     return this._request('chat.send', {
       sessionKey: this.sessionKey,
-      message: { text },
+      message: text,
       idempotencyKey: this._uuid(),
-      stream: true,
     });
   }
 
