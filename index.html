@@ -83,12 +83,66 @@
     font-size: 0.8rem; pointer-events: none;
     transition: opacity 0.3s;
   }
+
+  /* ── User message bubble ── */
+  #bubble {
+    position: fixed;
+    top: 8vh;
+    max-width: 60vw;
+    padding: 1.2em 1.8em;
+    background: rgba(255,255,255,0.85);
+    color: #4a3f5c;
+    border-radius: 1.5em;
+    font-size: clamp(0.9rem, 2.2vw, 1.5rem);
+    line-height: 1.5;
+    text-align: left;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 10;
+    pointer-events: none;
+    font-family: inherit;
+    box-shadow: 0 4px 20px rgba(142,120,190,0.15);
+  }
+  #bubble.right {
+    right: 4vw;
+    left: auto;
+  }
+  #bubble.right::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -18px;
+    transform: translateY(-50%);
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-left: 20px solid rgba(255,255,255,0.85);
+  }
+  #bubble.left {
+    left: 4vw;
+    right: auto;
+  }
+  #bubble.left::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -18px;
+    transform: translateY(-50%);
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-right: 20px solid rgba(255,255,255,0.85);
+  }
+  #bubble.visible {
+    opacity: 1;
+  }
 </style>
 </head>
 <body>
 
 <!-- Face engine -->
 <script src="face.js"></script>
+
+<!-- User message bubble -->
+<div id="bubble"></div>
 
 <!-- Status badges -->
 <div id="status-bar">
@@ -119,6 +173,23 @@
   const sendBtn = document.getElementById('send-btn');
   const pttBtn = document.getElementById('ptt-btn');
   const demoHint = document.getElementById('demo-hint');
+  const bubbleEl = document.getElementById('bubble');
+
+  // ── User message bubble ──
+  let bubbleTimeout = null;
+  function showBubble(text, duration) {
+    clearTimeout(bubbleTimeout);
+    bubbleEl.classList.remove('visible', 'left', 'right');
+    const side = Math.random() < 0.5 ? 'left' : 'right';
+    bubbleEl.classList.add(side);
+    bubbleEl.textContent = text;
+    requestAnimationFrame(() => {
+      bubbleEl.classList.add('visible');
+    });
+    bubbleTimeout = setTimeout(() => {
+      bubbleEl.classList.remove('visible');
+    }, duration || 8000);
+  }
 
   // ── Feature flags ──
   let hasServer = false;    // server.js running (PTT available)
@@ -219,6 +290,10 @@
     chatInput.value = '';
     chatInput.disabled = true;
     sendBtn.disabled = true;
+
+    // Show user message as bubble
+    showBubble(text, Math.max(text.length * 150, 5000));
+
     bot.send(text);
   }
 
@@ -283,6 +358,9 @@
         if (window.face) face.set('confused', 3000);
         return;
       }
+
+      // Show transcribed text as bubble
+      showBubble(text, Math.max(text.length * 150, 5000));
 
       // If gateway connected, send as chat message
       if (bot?.connected) {
