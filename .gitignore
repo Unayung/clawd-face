@@ -1,0 +1,15 @@
+# Environment and secrets
+.env
+*.pem
+
+# Server artifacts
+state.json
+tmp/
+audio/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -8,15 +8,40 @@ An expressive SVG face engine for AI agents. Zero dependencies. Drop-in module. 
 
 ## Quick Start
 
-### Option 1: Open the demo
+### Just the Face (no server)
 
 ```bash
 open index.html
 ```
 
-**Click anywhere** to cycle through expressions.
+Click anywhere to cycle through expressions. That's it.
 
-### Option 2: Add to your own page
+### With Voice Features (TTS + Speech Recognition)
+
+```bash
+# 1. Clone
+git clone https://github.com/user/clawd-face.git
+cd clawd-face
+
+# 2. Configure your OpenAI API key
+cp .env.example .env
+# Edit .env: OPENAI_API_KEY=sk-your-key-here
+
+# 3. Run
+npm start
+# → http://localhost:3737
+```
+
+No `npm install` needed — zero dependencies.
+
+### For iOS/Mobile (HTTPS required for mic)
+
+```bash
+npm run gen-certs   # Generate self-signed certificate
+npm start           # HTTPS on port 3738
+```
+
+### Embed in Your Page
 
 ```html
 <script src="face.js"></script>
@@ -25,16 +50,14 @@ open index.html
 </script>
 ```
 
-The module self-injects all CSS, SVG, and DOM elements. No other setup needed.
+The module self-injects CSS, SVG, and DOM. No setup needed.
 
-### Option 3: Use a custom container
+### Custom Container
 
 ```html
 <div id="my-face" style="width: 400px; height: 300px;"></div>
 <script src="face.js" data-container="my-face"></script>
 ```
-
-Without `data-container`, the face is appended to `document.body`.
 
 ## Expressions
 
@@ -291,6 +314,156 @@ When `autoExpressions` is enabled, tool usage triggers context-aware expressions
 | `index.html` | Minimal demo — loads `face.js`, click to cycle expressions |
 | `clawdbot.js` | Clawdbot gateway integration module |
 | `example-clawdbot.html` | Working example with chat input |
+| `server.js` | Node.js server for voice features (SSE, TTS, STT) |
+| `.env.example` | Example environment configuration |
+
+## Running the Server
+
+The included `server.js` provides voice features and real-time expression push.
+
+### Quick Start
+
+```bash
+# Install nothing — zero dependencies, uses Node built-ins
+
+# Run without voice features
+node server.js
+
+# Run with OpenAI TTS/STT
+OPENAI_API_KEY=sk-xxx node server.js
+
+# Or use a .env file
+cp .env.example .env
+# Edit .env with your API key
+node server.js
+```
+
+Server runs on `http://localhost:3737` by default.
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Serves `index.html` |
+| `/expression-stream` | GET | SSE stream for real-time expression push |
+| `/expression` | POST | Set expression `{ expression, duration, sessionKey? }` |
+| `/speak` | POST | TTS via OpenAI `{ text, voice? }` → MP3 |
+| `/transcribe` | POST | STT via Whisper (audio body) → `{ text }` |
+| `/media-proxy` | GET | Proxy local audio files `?file=/path/to/audio.mp3` |
+| `/health` | GET | Health check `{ ok, sseClients, hasOpenAI }` |
+
+### Push Expressions from Your Agent
+
+```bash
+# Set expression for all connected clients
+curl -X POST http://localhost:3737/expression \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"excited","duration":5000}'
+
+# Target specific session
+curl -X POST http://localhost:3737/expression \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"thinking","sessionKey":"face-abc123"}'
+```
+
+### SSE Client Example
+
+```js
+const es = new EventSource('/expression-stream?sessionKey=my-device');
+es.onmessage = (evt) => {
+  const { expression, duration } = JSON.parse(evt.data);
+  face.set(expression, duration);
+};
+```
+
+### HTTPS for iOS Microphone
+
+iOS Safari requires HTTPS for microphone access:
+
+```bash
+# Create certs directory
+mkdir -p certs
+
+# Generate self-signed certificate
+openssl req -x509 -newkey rsa:2048 \
+  -keyout certs/key.pem -out certs/cert.pem \
+  -days 365 -nodes -subj '/CN=localhost'
+
+# Server will auto-detect and serve HTTPS on port 3738
+node server.js
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENAI_API_KEY` | — | Required for `/speak` and `/transcribe` |
+| `PORT` | `3737` | HTTP port |
+| `HTTPS_PORT` | `3738` | HTTPS port (if certs exist) |
+| `HOST` | `0.0.0.0` | Bind address |
+
+## Voice Features Guide
+
+### Text-to-Speech
+
+```js
+// Generate and play TTS audio
+async function speakResponse(text) {
+  const resp = await fetch('/speak', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, voice: 'onyx' })
+  });
+  const arrayBuffer = await resp.arrayBuffer();
+
+  // Play with Web Audio API (iOS compatible)
+  const audioCtx = new AudioContext();
+  const buffer = await audioCtx.decodeAudioData(arrayBuffer);
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+
+  // Sync mouth animation
+  face.talk(buffer.duration * 1000);
+  source.start(0);
+}
+```
+
+Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`
+
+### Speech-to-Text
+
+```js
+// Record and transcribe audio
+const mediaRecorder = new MediaRecorder(stream);
+const chunks = [];
+
+mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+mediaRecorder.onstop = async () => {
+  const blob = new Blob(chunks, { type: 'audio/webm' });
+  const resp = await fetch('/transcribe', {
+    method: 'POST',
+    body: blob
+  });
+  const { text } = await resp.json();
+  console.log('Transcribed:', text);
+};
+```
+
+Requires `ffmpeg` on the server for audio conversion.
+
+### iOS Audio Unlock
+
+iOS blocks audio until user gesture:
+
+```js
+// Unlock AudioContext on first interaction
+let audioCtx;
+document.addEventListener('click', () => {
+  if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}, { once: true });
+```
 
 ## Browser Support
 

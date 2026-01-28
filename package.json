@@ -1,0 +1,30 @@
+{
+  "name": "clawd-face",
+  "version": "1.0.0",
+  "description": "Expressive SVG face engine for AI agents",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "serve": "node server.js",
+    "demo": "open index.html || xdg-open index.html",
+    "gen-certs": "mkdir -p certs && openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj '/CN=localhost'"
+  },
+  "keywords": [
+    "face",
+    "avatar",
+    "svg",
+    "expression",
+    "ai",
+    "agent",
+    "clawdbot"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/clawd-face"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
