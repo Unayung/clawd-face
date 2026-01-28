@@ -192,9 +192,100 @@
   }
 
   // ── Feature flags ──
-  let hasServer = false;    // server.js running (PTT available)
+  let hasServer = false;    // server.js running (PTT + TTS available)
   let hasGateway = false;   // Clawdbot WS connected (chat available)
   let bot = null;
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── TTS: Text-to-Speech via OpenAI ──
+  // ══════════════════════════════════════════════════════════════════
+  let audioCtx = null;
+  let audioUnlocked = false;
+  let pendingAudioData = null;
+  let currentAudioSource = null;
+
+  function ensureAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      console.log('[tts] AudioContext created, state:', audioCtx.state);
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => {
+        audioUnlocked = true;
+        console.log('[tts] AudioContext resumed ✓');
+      });
+    } else if (audioCtx.state === 'running') {
+      audioUnlocked = true;
+    }
+  }
+
+  // Unlock audio on first user interaction (required for iOS)
+  ['click', 'touchstart', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, function unlock() {
+      ensureAudioCtx();
+      if (pendingAudioData && audioCtx?.state === 'running') {
+        const data = pendingAudioData;
+        pendingAudioData = null;
+        playAudioBuffer(data);
+      }
+    }, { once: false, passive: true });
+  });
+
+  function playAudioBuffer(arrayBuffer) {
+    if (!audioCtx || audioCtx.state !== 'running') {
+      console.log('[tts] AudioContext not ready, queuing');
+      pendingAudioData = arrayBuffer;
+      return;
+    }
+
+    // Stop any currently playing audio
+    if (currentAudioSource) {
+      try { currentAudioSource.stop(); } catch {}
+      currentAudioSource = null;
+    }
+
+    audioCtx.decodeAudioData(arrayBuffer.slice(0), (buffer) => {
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      currentAudioSource = source;
+
+      // Sync mouth animation with audio duration
+      if (window.face?.talk) {
+        window.face.talk(buffer.duration * 1000);
+      }
+
+      source.onended = () => {
+        currentAudioSource = null;
+        if (window.face?.stop) window.face.stop();
+      };
+
+      source.start(0);
+      console.log('[tts] Playing audio, duration:', buffer.duration);
+    }, (err) => {
+      console.error('[tts] decode error:', err);
+    });
+  }
+
+  async function generateAndPlayTTS(text) {
+    if (!hasServer) return;
+    try {
+      const ttsText = text.length > 500 ? text.slice(0, 500) + '...' : text;
+      const resp = await fetch('/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: ttsText, voice: 'onyx' }),
+      });
+      if (!resp.ok) {
+        console.error('[tts] server error:', resp.status);
+        return;
+      }
+      const arrayBuffer = await resp.arrayBuffer();
+      playAudioBuffer(arrayBuffer);
+    } catch (e) {
+      console.error('[tts] error:', e);
+    }
+  }
 
   // ── URL params ──
   const params = new URLSearchParams(window.location.search);
@@ -269,9 +360,17 @@
         statusGw.className = 'status-badge err';
         updateUI();
       },
-      onMessage: () => {
+      onMessage: (text) => {
         chatInput.disabled = false;
         sendBtn.disabled = false;
+
+        // Generate and play TTS for bot response
+        if (hasServer && text) {
+          const cleanText = text.replace(/MEDIA:\S+/g, '').trim();
+          if (cleanText) {
+            generateAndPlayTTS(cleanText);
+          }
+        }
       },
       onError: (err) => {
         console.error('[bot]', err);
@@ -302,46 +401,150 @@
   });
   sendBtn.addEventListener('click', sendMessage);
 
-  // ── PTT (Push-to-Talk) ──
+  // ══════════════════════════════════════════════════════════════════
+  // ── Voice Input: Web Speech API + MediaRecorder fallback ──
+  // ══════════════════════════════════════════════════════════════════
+  let recognition = null;
+  let isRecording = false;
+  let spaceHeld = false;
+  let pendingSend = false;
+
+  // MediaRecorder fallback (for iOS or browsers without Web Speech)
   let mediaRecorder = null;
   let audioChunks = [];
-  let pttActive = false;
+  let useMediaRecorder = false;
 
-  async function pttStart() {
-    if (pttActive) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus' : 'audio/webm'
-      });
-      audioChunks = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunks.push(e.data);
-      };
-      mediaRecorder.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
-        pttSend();
-      };
-      mediaRecorder.start();
-      pttActive = true;
+  // Try to use Web Speech API
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = navigator.language || 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onresult = (event) => {
+      let transcript = '';
+      let hasFinal = false;
+      for (let i = 0; i < event.results.length; i++) {
+        transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) hasFinal = true;
+      }
+
+      // Fill input as user speaks (real-time)
+      chatInput.value = transcript;
+
+      // If space released and got final result, send
+      if (hasFinal && pendingSend) {
+        pendingSend = false;
+        stopRecording();
+        if (transcript.trim()) {
+          showBubble(transcript.trim(), Math.max(transcript.length * 150, 5000));
+          if (bot?.connected) {
+            sendMessage();
+          } else {
+            if (window.face?.subtitle) face.subtitle(transcript.trim(), 5000);
+            if (window.face) face.set('happy', 5000);
+          }
+        }
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.log('[speech] error:', event.error);
+      pendingSend = false;
+      stopRecording();
+    };
+
+    recognition.onend = () => {
+      // If we were waiting to send but recognition ended, send what we have
+      if (pendingSend) {
+        pendingSend = false;
+        const text = chatInput.value.trim();
+        if (text) {
+          showBubble(text, Math.max(text.length * 150, 5000));
+          if (bot?.connected) {
+            sendMessage();
+          } else {
+            if (window.face?.subtitle) face.subtitle(text, 5000);
+            if (window.face) face.set('happy', 5000);
+          }
+        }
+      }
+      isRecording = false;
+      pttBtn.classList.remove('active');
+      pttBtn.textContent = '🎤';
+      chatInput.placeholder = 'Say something...';
+    };
+  } else {
+    // No Web Speech API, use MediaRecorder fallback
+    useMediaRecorder = true;
+  }
+
+  // ── Start recording ──
+  async function startRecording() {
+    if (isRecording) return;
+
+    // Pre-unlock AudioContext
+    ensureAudioCtx();
+
+    if (useMediaRecorder || !recognition) {
+      // MediaRecorder fallback (for iOS)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus' : 'audio/webm'
+        });
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          transcribeAndSend();
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        pttBtn.classList.add('active');
+        pttBtn.textContent = '⏺';
+        chatInput.placeholder = 'Listening...';
+        if (window.face) face.set('alert', 30000);
+      } catch (err) {
+        console.error('[ptt] mic error:', err);
+      }
+    } else {
+      // Web Speech API
+      isRecording = true;
       pttBtn.classList.add('active');
       pttBtn.textContent = '⏺';
+      chatInput.placeholder = 'Listening...';
       if (window.face) face.set('alert', 30000);
-    } catch (err) {
-      console.error('[ptt] mic error:', err);
+      try { recognition.start(); } catch {}
     }
   }
 
-  function pttStop() {
-    if (!pttActive || !mediaRecorder) return;
-    pttActive = false;
+  // ── Stop recording ──
+  function stopRecording() {
+    if (!isRecording) return;
+
+    if (useMediaRecorder || !recognition) {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    } else {
+      // Web Speech: set pendingSend and let onresult/onend handle it
+      pendingSend = true;
+      try { recognition.stop(); } catch {}
+    }
+
+    isRecording = false;
     pttBtn.classList.remove('active');
     pttBtn.textContent = '🎤';
-    mediaRecorder.stop();
+    chatInput.placeholder = 'Say something...';
   }
 
-  async function pttSend() {
+  // ── MediaRecorder: transcribe via /transcribe endpoint ──
+  async function transcribeAndSend() {
     if (!audioChunks.length) return;
     if (window.face) face.set('thinking', 15000);
 
@@ -359,15 +562,14 @@
         return;
       }
 
-      // Show transcribed text as bubble
+      // Show transcribed text
+      chatInput.value = text;
       showBubble(text, Math.max(text.length * 150, 5000));
 
-      // If gateway connected, send as chat message
+      // Send if gateway connected
       if (bot?.connected) {
-        chatInput.value = text;
         sendMessage();
       } else {
-        // Just show as subtitle
         if (window.face?.subtitle) face.subtitle(text, 5000);
         if (window.face) face.set('happy', 5000);
       }
@@ -377,13 +579,49 @@
     }
   }
 
-  // PTT events: mouse + touch
-  pttBtn.addEventListener('mousedown', (e) => { e.preventDefault(); pttStart(); });
-  pttBtn.addEventListener('mouseup', pttStop);
-  pttBtn.addEventListener('mouseleave', pttStop);
-  pttBtn.addEventListener('touchstart', (e) => { e.preventDefault(); pttStart(); }, { passive: false });
-  pttBtn.addEventListener('touchend', (e) => { e.preventDefault(); pttStop(); });
-  pttBtn.addEventListener('touchcancel', pttStop);
+  // ── PTT Button events ──
+  pttBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startRecording(); });
+  pttBtn.addEventListener('mouseup', stopRecording);
+  pttBtn.addEventListener('mouseleave', stopRecording);
+  pttBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); }, { passive: false });
+  pttBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+  pttBtn.addEventListener('touchcancel', stopRecording);
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── Spacebar Push-to-Talk ──
+  // ══════════════════════════════════════════════════════════════════
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !e.repeat) {
+      // Don't trigger if typing in input (unless input is focused and empty)
+      if (document.activeElement === chatInput && chatInput.value.trim()) {
+        return; // Let space type normally
+      }
+      if (document.activeElement === chatInput) {
+        chatInput.blur();
+      }
+      e.preventDefault();
+      if (!spaceHeld && hasServer) {
+        spaceHeld = true;
+        startRecording();
+      }
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && spaceHeld) {
+      e.preventDefault();
+      spaceHeld = false;
+      stopRecording();
+    }
+  });
+
+  // Prevent space from typing in input during PTT
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && (spaceHeld || isRecording)) {
+      e.preventDefault();
+      return;
+    }
+  });
 
   // ── Init ──
   detectServer();
