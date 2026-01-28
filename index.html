@@ -291,7 +291,19 @@
   const params = new URLSearchParams(window.location.search);
   const gwUrl = params.get('gw') || '';
   const gwToken = params.get('token') || '';
-  const sessionKey = params.get('session') || 'face';
+
+  // Each device gets its own persistent session via localStorage
+  function getSessionKey() {
+    const urlKey = params.get('session');
+    if (urlKey) return urlKey;
+    let key = localStorage.getItem('clawd-face-session');
+    if (!key) {
+      key = 'face-' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('clawd-face-session', key);
+    }
+    return key;
+  }
+  const sessionKey = getSessionKey();
 
   // ── UI update ──
   function updateUI() {
