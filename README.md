@@ -8,7 +8,7 @@ Give your [Clawdbot](https://github.com/clawdbot/clawdbot) or [Moltbot](https://
 
 ## Quick Start
 
-### Just the Face (no server)
+### Just the Face
 
 ```bash
 open index.html
@@ -16,7 +16,7 @@ open index.html
 
 Click anywhere to cycle through expressions. That's it.
 
-### With Voice Features (TTS + Speech Recognition)
+### With Voice (Push-to-Talk)
 
 ```bash
 # 1. Clone
@@ -32,7 +32,17 @@ npm start
 # → http://localhost:3737
 ```
 
-No `npm install` needed — zero dependencies.
+No `npm install` needed — zero dependencies. A 🎤 PTT button appears automatically.
+
+### With Clawdbot / Moltbot Gateway
+
+Add your gateway URL and token as query parameters:
+
+```
+http://localhost:3737?gw=ws://localhost:18789&token=YOUR_TOKEN
+```
+
+A chat input bar appears automatically when connected.
 
 ### For iOS/Mobile (HTTPS required for mic)
 
@@ -40,6 +50,34 @@ No `npm install` needed — zero dependencies.
 npm run gen-certs   # Generate self-signed certificate
 npm start           # HTTPS on port 3738
 ```
+
+## Adaptive UI
+
+`index.html` automatically detects available features and adapts the interface:
+
+| What's running | What you get |
+|---|---|
+| Nothing (just open the file) | Face only — tap to cycle expressions |
+| `server.js` | 🎤 Push-to-Talk button (hold to record → Whisper STT) |
+| Gateway connected (`?gw=...&token=...`) | 💬 Text input + send button |
+| Both | 🎤 PTT + 💬 text input — full experience |
+
+**How it works:**
+
+1. On load, `index.html` probes `GET /health` — if the server responds, PTT is enabled
+2. If `?gw=` and `?token=` URL params are present, it connects to the Clawdbot/Moltbot gateway via WebSocket
+3. The bottom bar and controls appear only when at least one feature is detected
+4. Status badges in the top-right corner show connection state
+
+**PTT flow:** Hold the 🎤 button → record audio → release → audio is sent to `/transcribe` (Whisper) → transcribed text is auto-sent to the gateway (if connected) or displayed as a subtitle.
+
+### URL Parameters
+
+| Param | Default | Description |
+|---|---|---|
+| `gw` | — | Gateway WebSocket URL (e.g. `ws://localhost:18789`) |
+| `token` | — | Gateway auth token |
+| `session` | `face` | Session key for the chat |
 
 ### Embed in Your Own Website
 
@@ -380,9 +418,9 @@ When `autoExpressions` is enabled, tool usage triggers context-aware expressions
 | File | Description |
 |------|-------------|
 | `face.js` | Core face engine — self-contained, injects everything |
-| `index.html` | Minimal demo — loads `face.js`, click to cycle expressions |
-| `clawdbot.js` | Clawdbot gateway integration module |
-| `example-clawdbot.html` | Working example with chat input |
+| `index.html` | Adaptive UI — auto-detects server & gateway, shows PTT / chat input accordingly |
+| `clawdbot.js` | Clawdbot/Moltbot gateway integration module |
+| `example-clawdbot.html` | Standalone example with hardcoded chat input (no feature detection) |
 | `server.js` | Node.js server for voice features (SSE, TTS, STT) |
 | `.env.example` | Example environment configuration |
 

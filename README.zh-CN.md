@@ -8,7 +8,7 @@
 
 ## 快速开始
 
-### 单纯看脸（不需服务器）
+### 单纯看脸
 
 ```bash
 open index.html
@@ -16,7 +16,7 @@ open index.html
 
 点击任意位置切换表情。就这样。
 
-### 加入语音功能（TTS + 语音识别）
+### 加入语音（Push-to-Talk）
 
 ```bash
 # 1. 克隆项目
@@ -32,7 +32,17 @@ npm start
 # → http://localhost:3737
 ```
 
-不需要 `npm install` — 零依赖。
+不需要 `npm install` — 零依赖。🎤 PTT 按钮会自动出现。
+
+### 连接 Clawdbot / Moltbot Gateway
+
+加入 Gateway URL 和 token 作为 query 参数：
+
+```
+http://localhost:3737?gw=ws://localhost:18789&token=YOUR_TOKEN
+```
+
+连线成功后会自动出现聊天输入框。
 
 ### iOS/手机版（麦克风需要 HTTPS）
 
@@ -40,6 +50,34 @@ npm start
 npm run gen-certs   # 生成自签证书
 npm start           # HTTPS 在 port 3738
 ```
+
+## 自适应 UI
+
+`index.html` 会自动检测可用功能并调整界面：
+
+| 运行环境 | 显示内容 |
+|---|---|
+| 什么都没有（直接开文件） | 纯脸部展示 — 点击切换表情 |
+| 有 `server.js` 运行 | 🎤 Push-to-Talk 按钮（长按录音 → Whisper 语音转文字） |
+| Gateway 已连线（`?gw=...&token=...`） | 💬 文字输入框 + 发送按钮 |
+| 两者都有 | 🎤 PTT + 💬 文字输入 — 完整体验 |
+
+**运作方式：**
+
+1. 加载时，页面探测 `GET /health` — 服务器有响应就启用 PTT
+2. 若有 `?gw=` 和 `?token=` URL 参数，通过 WebSocket 连接 Clawdbot/Moltbot Gateway
+3. 底部栏和控件只在检测到至少一项功能时才显示
+4. 右上角状态徽章显示连线状态
+
+**PTT 流程：** 按住 🎤 按钮 → 录音 → 放开 → 音频传到 `/transcribe`（Whisper）→ 转出的文字自动发送到 Gateway（如已连线）或显示为字幕。
+
+### URL 参数
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `gw` | — | Gateway WebSocket URL（例如 `ws://localhost:18789`） |
+| `token` | — | Gateway 认证 token |
+| `session` | `face` | 聊天 session key |
 
 ### 嵌入你自己的网站
 
@@ -296,9 +334,9 @@ node server.js
 | 文件 | 说明 |
 |-----|------|
 | `face.js` | 核心脸部引擎 — 独立运作，自动注入所有内容 |
-| `index.html` | 精简演示 — 加载 `face.js`，点击切换表情 |
-| `clawdbot.js` | Clawdbot 网关集成模块 |
-| `example-clawdbot.html` | 含聊天输入的完整示例 |
+| `index.html` | 自适应 UI — 自动检测 server 与 gateway，显示 PTT / 聊天输入 |
+| `clawdbot.js` | Clawdbot/Moltbot 网关集成模块 |
+| `example-clawdbot.html` | 独立示例，固定聊天输入（无功能检测） |
 | `server.js` | Node.js 服务器（SSE、TTS、STT） |
 | `.env.example` | 环境配置示例 |
 

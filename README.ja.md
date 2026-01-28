@@ -8,7 +8,7 @@
 
 ## クイックスタート
 
-### フェイスのみ（サーバー不要）
+### フェイスのみ
 
 ```bash
 open index.html
@@ -16,7 +16,7 @@ open index.html
 
 どこでもクリックして表情を切り替え。以上。
 
-### 音声機能付き（TTS + 音声認識）
+### 音声付き（Push-to-Talk）
 
 ```bash
 # 1. クローン
@@ -32,7 +32,17 @@ npm start
 # → http://localhost:3737
 ```
 
-`npm install` 不要 — 依存ゼロ。
+`npm install` 不要 — 依存ゼロ。🎤 PTTボタンが自動的に表示されます。
+
+### Clawdbot / Moltbot Gatewayに接続
+
+Gateway URLとtokenをクエリパラメータとして追加：
+
+```
+http://localhost:3737?gw=ws://localhost:18789&token=YOUR_TOKEN
+```
+
+接続成功後、チャット入力欄が自動的に表示されます。
 
 ### iOS/モバイル（マイクにHTTPS必須）
 
@@ -40,6 +50,34 @@ npm start
 npm run gen-certs   # 自己署名証明書を生成
 npm start           # HTTPS は port 3738
 ```
+
+## アダプティブUI
+
+`index.html` は利用可能な機能を自動検出し、インターフェースを適応させます：
+
+| 実行環境 | 表示内容 |
+|---|---|
+| 何もなし（ファイルを直接開く） | フェイスのみ — クリックで表情切り替え |
+| `server.js` 稼働中 | 🎤 Push-to-Talkボタン（長押しで録音 → Whisper音声認識） |
+| Gateway接続済み（`?gw=...&token=...`） | 💬 テキスト入力 + 送信ボタン |
+| 両方あり | 🎤 PTT + 💬 テキスト入力 — フル体験 |
+
+**仕組み：**
+
+1. 読み込み時、`GET /health` を探査 — サーバーが応答すればPTTを有効化
+2. `?gw=` と `?token=` URLパラメータがあれば、WebSocketでClawdbot/Moltbot Gatewayに接続
+3. 下部バーとコントロールは少なくとも1つの機能が検出された場合のみ表示
+4. 右上のステータスバッジが接続状態を表示
+
+**PTTフロー：** 🎤ボタンを長押し → 録音 → 離す → 音声を `/transcribe`（Whisper）に送信 → テキストをGatewayに自動送信（接続済みの場合）またはサブタイトルとして表示。
+
+### URLパラメータ
+
+| パラメータ | デフォルト | 説明 |
+|---|---|---|
+| `gw` | — | Gateway WebSocket URL（例: `ws://localhost:18789`） |
+| `token` | — | Gateway認証トークン |
+| `session` | `face` | チャットセッションキー |
 
 ### 自分のウェブサイトに埋め込む
 
@@ -296,9 +334,9 @@ node server.js
 | ファイル | 説明 |
 |--------|------|
 | `face.js` | コアフェイスエンジン — 自己完結、全てを自動注入 |
-| `index.html` | 最小デモ — `face.js`を読み込み、クリックで表情切替 |
-| `clawdbot.js` | Clawdbotゲートウェイ統合モジュール |
-| `example-clawdbot.html` | チャット入力付き完全サンプル |
+| `index.html` | アダプティブUI — server・gateway を自動検出、PTT/チャット入力を表示 |
+| `clawdbot.js` | Clawdbot/Moltbotゲートウェイ統合モジュール |
+| `example-clawdbot.html` | 独立サンプル、固定チャット入力（機能検出なし） |
 | `server.js` | Node.jsサーバー（SSE、TTS、STT） |
 | `.env.example` | 環境設定サンプル |
 

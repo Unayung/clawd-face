@@ -12,9 +12,76 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #f5d5e0 100%);
+    font-family: 'Courier New', 'Menlo', monospace;
     height: 100vh; width: 100vw;
-    overflow: hidden; cursor: none;
+    overflow: hidden;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Status badge ── */
+  #status-bar {
+    position: fixed; top: 0.8rem; right: 0.8rem; z-index: 100;
+    display: flex; flex-direction: column; gap: 0.3rem;
+    align-items: flex-end;
+  }
+  .status-badge {
+    padding: 0.3em 0.8em; border-radius: 1em;
+    font-size: 0.75rem; white-space: nowrap;
+    background: rgba(255,255,255,0.7);
+    transition: opacity 0.3s;
+  }
+  .status-badge.ok { color: #59c97a; }
+  .status-badge.err { color: #e85d72; }
+  .status-badge.warn { color: #f97316; }
+
+  /* ── Bottom bar ── */
+  #bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.8rem 1.2rem;
+    padding-bottom: calc(0.8rem + env(safe-area-inset-bottom, 0px));
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 50;
+    border-top: 1px solid rgba(142,120,190,0.2);
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+  }
+  #bottom-bar.visible { transform: translateY(0); }
+
+  /* ── Chat input ── */
+  #chat-input {
+    flex: 1; display: none;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(142,120,190,0.3);
+    border-radius: 1.5rem; padding: 0.7rem 1.2rem;
+    color: #4a3f5c; font-family: inherit;
+    font-size: 1rem; outline: none;
+    min-width: 0;
+  }
+  #chat-input:focus { border-color: rgba(142,120,190,0.6); }
+  #chat-input::placeholder { color: #a89cc0; }
+
+  /* ── Buttons ── */
+  .bar-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: rgba(142,120,190,0.2); color: #7a6a9a;
+    font-size: 1.2rem; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .bar-btn:hover { background: rgba(142,120,190,0.35); }
+  .bar-btn:disabled { opacity: 0.4; cursor: default; }
+  .bar-btn.active { background: rgba(229,62,62,0.3); color: #e53e3e; }
+
+  /* ── Demo hint (no features) ── */
+  #demo-hint {
+    position: fixed; bottom: 1.5rem; left: 0; right: 0;
+    text-align: center; color: rgba(100,80,140,0.5);
+    font-size: 0.8rem; pointer-events: none;
+    transition: opacity 0.3s;
   }
 </style>
 </head>
@@ -23,14 +90,227 @@
 <!-- Face engine -->
 <script src="face.js"></script>
 
-<!-- Click to cycle expressions (demo) -->
+<!-- Status badges -->
+<div id="status-bar">
+  <div id="status-gw" class="status-badge" style="display:none"></div>
+  <div id="status-server" class="status-badge" style="display:none"></div>
+</div>
+
+<!-- Bottom bar (hidden until features detected) -->
+<div id="bottom-bar">
+  <button id="ptt-btn" class="bar-btn" title="Push to Talk">🎤</button>
+  <input id="chat-input" type="text" placeholder="Say something..." autocomplete="off" enterkeyhint="send" />
+  <button id="send-btn" class="bar-btn" title="Send">➤</button>
+</div>
+
+<!-- Demo hint (shown when no features) -->
+<div id="demo-hint">tap anywhere to cycle expressions</div>
+
+<!-- Clawdbot integration -->
+<script src="clawdbot.js"></script>
+
 <script>
+(() => {
+  // ── Elements ──
+  const statusGw = document.getElementById('status-gw');
+  const statusServer = document.getElementById('status-server');
+  const bottomBar = document.getElementById('bottom-bar');
+  const chatInput = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-btn');
+  const pttBtn = document.getElementById('ptt-btn');
+  const demoHint = document.getElementById('demo-hint');
+
+  // ── Feature flags ──
+  let hasServer = false;    // server.js running (PTT available)
+  let hasGateway = false;   // Clawdbot WS connected (chat available)
+  let bot = null;
+
+  // ── URL params ──
+  const params = new URLSearchParams(window.location.search);
+  const gwUrl = params.get('gw') || '';
+  const gwToken = params.get('token') || '';
+  const sessionKey = params.get('session') || 'face';
+
+  // ── UI update ──
+  function updateUI() {
+    const anyFeature = hasServer || hasGateway;
+    bottomBar.classList.toggle('visible', anyFeature);
+    demoHint.style.opacity = anyFeature ? '0' : '1';
+
+    // Chat input + send: only when gateway connected
+    chatInput.style.display = hasGateway ? 'block' : 'none';
+    sendBtn.style.display = hasGateway ? 'flex' : 'none';
+
+    // PTT: only when server running
+    pttBtn.style.display = hasServer ? 'flex' : 'none';
+  }
+
+  // ── Demo mode (click to cycle) ──
   let demoIndex = 0;
   const allNames = face.list();
-  document.body.addEventListener('click', () => {
+  document.body.addEventListener('click', (e) => {
+    if (e.target.closest('#bottom-bar, #status-bar')) return;
     demoIndex = (demoIndex + 1) % allNames.length;
     face.set(allNames[demoIndex], 5000);
   });
+
+  // ── 1. Detect server.js ──
+  function detectServer() {
+    fetch('/health', { signal: AbortSignal.timeout(2000) })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          hasServer = true;
+          statusServer.textContent = 'Server ✓';
+          statusServer.className = 'status-badge ok';
+          statusServer.style.display = '';
+          updateUI();
+        }
+      })
+      .catch(() => {
+        // Not running via server.js — that's fine
+      });
+  }
+
+  // ── 2. Detect & connect Clawdbot gateway ──
+  function detectGateway() {
+    if (!gwUrl || !gwToken) return;
+
+    statusGw.textContent = 'Connecting…';
+    statusGw.className = 'status-badge warn';
+    statusGw.style.display = '';
+
+    bot = new ClawdbotFace({
+      gatewayUrl: gwUrl,
+      token: gwToken,
+      sessionKey: sessionKey,
+
+      onConnect: () => {
+        hasGateway = true;
+        statusGw.textContent = 'Gateway ✓';
+        statusGw.className = 'status-badge ok';
+        updateUI();
+        chatInput.focus();
+      },
+      onDisconnect: () => {
+        hasGateway = false;
+        statusGw.textContent = 'Disconnected';
+        statusGw.className = 'status-badge err';
+        updateUI();
+      },
+      onMessage: () => {
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+      },
+      onError: (err) => {
+        console.error('[bot]', err);
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+      },
+    });
+
+    bot.connect();
+  }
+
+  // ── Chat send ──
+  function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text || !bot?.connected) return;
+    chatInput.value = '';
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    bot.send(text);
+  }
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+  sendBtn.addEventListener('click', sendMessage);
+
+  // ── PTT (Push-to-Talk) ──
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let pttActive = false;
+
+  async function pttStart() {
+    if (pttActive) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus' : 'audio/webm'
+      });
+      audioChunks = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        pttSend();
+      };
+      mediaRecorder.start();
+      pttActive = true;
+      pttBtn.classList.add('active');
+      pttBtn.textContent = '⏺';
+      if (window.face) face.set('alert', 30000);
+    } catch (err) {
+      console.error('[ptt] mic error:', err);
+    }
+  }
+
+  function pttStop() {
+    if (!pttActive || !mediaRecorder) return;
+    pttActive = false;
+    pttBtn.classList.remove('active');
+    pttBtn.textContent = '🎤';
+    mediaRecorder.stop();
+  }
+
+  async function pttSend() {
+    if (!audioChunks.length) return;
+    if (window.face) face.set('thinking', 15000);
+
+    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+    try {
+      const resp = await fetch('/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'audio/webm' },
+        body: blob,
+      });
+      const data = await resp.json();
+      const text = data.text?.trim();
+      if (!text) {
+        if (window.face) face.set('confused', 3000);
+        return;
+      }
+
+      // If gateway connected, send as chat message
+      if (bot?.connected) {
+        chatInput.value = text;
+        sendMessage();
+      } else {
+        // Just show as subtitle
+        if (window.face?.subtitle) face.subtitle(text, 5000);
+        if (window.face) face.set('happy', 5000);
+      }
+    } catch (err) {
+      console.error('[ptt] transcribe error:', err);
+      if (window.face) face.set('confused', 3000);
+    }
+  }
+
+  // PTT events: mouse + touch
+  pttBtn.addEventListener('mousedown', (e) => { e.preventDefault(); pttStart(); });
+  pttBtn.addEventListener('mouseup', pttStop);
+  pttBtn.addEventListener('mouseleave', pttStop);
+  pttBtn.addEventListener('touchstart', (e) => { e.preventDefault(); pttStart(); }, { passive: false });
+  pttBtn.addEventListener('touchend', (e) => { e.preventDefault(); pttStop(); });
+  pttBtn.addEventListener('touchcancel', pttStop);
+
+  // ── Init ──
+  detectServer();
+  detectGateway();
+})();
 </script>
 
 </body>
