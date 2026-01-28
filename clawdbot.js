@@ -222,22 +222,42 @@ class ClawdbotFace {
     if (!payload) return;
     if (!this.autoExpressions || !window.face) return;
 
-    if (payload.toolCalls || payload.state === 'toolUse') {
-      const tools = payload.toolCalls || [];
-      const toolNames = tools.map(t => t.name || '').join(',');
+    // Extract tool name - support multiple protocol versions:
+    // v1: payload.toolCalls array (legacy)
+    // v2: payload.state === 'toolUse' (legacy)
+    // v3+: payload.stream === 'tool' with payload.data.name (current)
+    let toolName = '';
 
-      if (/web_search|web_fetch/.test(toolNames)) {
-        window.face.set('investigating', 10000);
-      } else if (/exec/.test(toolNames)) {
-        window.face.set('working', 10000);
-      } else if (/tts|speak/.test(toolNames)) {
-        window.face.set('happy', 5000);
-      } else {
-        window.face.set('focused', 8000);
-      }
-
-      if (this.onToolUse) this.onToolUse(toolNames, payload);
+    if (payload.stream === 'tool' && payload.data?.name) {
+      // Current protocol (v3+): stream-based tool events
+      toolName = payload.data.name;
+    } else if (payload.toolCalls && Array.isArray(payload.toolCalls)) {
+      // Legacy: toolCalls array
+      toolName = payload.toolCalls.map(t => t.name || '').join(',');
+    } else if (payload.state === 'toolUse') {
+      // Legacy: state-based tool indicator
+      toolName = payload.toolName || payload.name || 'unknown';
+    } else {
+      // No tool event detected
+      return;
     }
+
+    // Map tool names to expressions
+    if (/web_search|web_fetch|search|fetch/i.test(toolName)) {
+      window.face.set('investigating', 10000);
+    } else if (/exec|bash|shell|command/i.test(toolName)) {
+      window.face.set('working', 10000);
+    } else if (/tts|speak|audio|voice/i.test(toolName)) {
+      window.face.set('happy', 5000);
+    } else if (/read|file|glob|grep/i.test(toolName)) {
+      window.face.set('thinking', 8000);
+    } else if (/write|edit|create/i.test(toolName)) {
+      window.face.set('focused', 10000);
+    } else {
+      window.face.set('focused', 8000);
+    }
+
+    if (this.onToolUse) this.onToolUse(toolName, payload);
   }
 
   _extractText(message) {

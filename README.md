@@ -1,23 +1,40 @@
 # 🤖 Clawd Face
 
-An expressive SVG face engine for AI agents. Zero dependencies. Single HTML file. Just open it.
+**Speak to your clawdbot — face to face.**
+
+An expressive SVG face engine for AI agents. Zero dependencies. Drop-in module. Just include the script.
 
 ![Clawd Face](https://img.shields.io/badge/dependencies-zero-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## Quick Start
 
+### Option 1: Open the demo
+
 ```bash
-# That's it. Open the file.
 open index.html
 ```
 
-Or serve it:
+**Click anywhere** to cycle through expressions.
 
-```bash
-npx serve .
+### Option 2: Add to your own page
+
+```html
+<script src="face.js"></script>
+<script>
+  face.set('happy', 5000);
+</script>
 ```
 
-**Click anywhere** to cycle through expressions.
+The module self-injects all CSS, SVG, and DOM elements. No other setup needed.
+
+### Option 3: Use a custom container
+
+```html
+<div id="my-face" style="width: 400px; height: 300px;"></div>
+<script src="face.js" data-container="my-face"></script>
+```
+
+Without `data-container`, the face is appended to `document.body`.
 
 ## Expressions
 
@@ -158,12 +175,24 @@ face.set('myExpr', 3000);
 
 ### Change colors
 
-The face uses CSS custom colors. Key values in the `<style>` block:
+The face injects its own CSS with these key classes:
 
-- Background gradient: `body { background: ... }`
-- Face color: `.eye-shape { fill: #4a3f5c }` and `.mouth-line { stroke: #4a3f5c }`
-- Lid color: `fill: '#d4b8f0'` in eye drawing functions
-- Label color: `#label { color: #8a7aaa }`
+| Selector | Default | Purpose |
+|----------|---------|---------|
+| `.clawd-eye-shape` | `#4a3f5c` | Eye fill color |
+| `.clawd-pupil` | `#fff` | Pupil color |
+| `.clawd-mouth` | `#4a3f5c` | Mouth stroke color |
+| `#clawd-label` | `#8a7aaa` | Label text color |
+| `#clawd-subtitle` | `#4a3f5c` | Subtitle text color |
+
+Override after the script loads:
+
+```css
+.clawd-eye-shape { fill: #2d2640 !important; }
+#clawd-label { color: #5a4a7a !important; }
+```
+
+For background styling, apply to your container or `body` — the module doesn't touch background colors.
 
 ## Connecting to Clawdbot
 
@@ -228,14 +257,38 @@ When connected to Clawdbot, the face:
 | `onDisconnect` | `null` | Called when disconnected |
 | `onMessage` | `null` | Called with final response `(text, payload)` |
 | `onDelta` | `null` | Called with streaming chunks `(text, payload)` |
-| `onToolUse` | `null` | Called when agent uses tools `(toolNames, payload)` |
+| `onToolUse` | `null` | Called when agent uses tools `(toolName, payload)` |
 | `onError` | `null` | Called on errors `(errorMessage)` |
+
+### Tool Expression Mapping
+
+When `autoExpressions` is enabled, tool usage triggers context-aware expressions:
+
+| Tool Pattern | Expression | Duration |
+|--------------|------------|----------|
+| `web_search`, `fetch` | `investigating` | 10s |
+| `exec`, `bash`, `shell` | `working` | 10s |
+| `read`, `file`, `glob`, `grep` | `thinking` | 8s |
+| `write`, `edit`, `create` | `focused` | 10s |
+| `tts`, `speak`, `audio` | `happy` | 5s |
+| Other tools | `focused` | 8s |
+
+### Protocol Compatibility
+
+`clawdbot.js` supports multiple Clawdbot/Moltbot gateway versions:
+
+| Protocol | Format | Status |
+|----------|--------|--------|
+| v3+ (current) | `stream: 'tool'`, `data.name` | ✅ Supported |
+| Legacy | `toolCalls` array | ✅ Supported |
+| Legacy | `state: 'toolUse'` | ✅ Supported |
 
 ### Files
 
 | File | Description |
 |------|-------------|
-| `index.html` | Standalone face — no dependencies, just open it |
+| `face.js` | Core face engine — self-contained, injects everything |
+| `index.html` | Minimal demo — loads `face.js`, click to cycle expressions |
 | `clawdbot.js` | Clawdbot gateway integration module |
 | `example-clawdbot.html` | Working example with chat input |
 
