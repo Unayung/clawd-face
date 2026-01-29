@@ -94,10 +94,10 @@
       pointer-events: none;
     }
     #clawd-thought-container.visible { opacity: 1; }
-    #clawd-thought-container.pos-top-left { top: 8vh; left: 5vw; }
-    #clawd-thought-container.pos-top-right { top: 8vh; right: 5vw; }
-    #clawd-thought-container.pos-bottom-left { bottom: 25vh; left: 5vw; }
-    #clawd-thought-container.pos-bottom-right { bottom: 25vh; right: 5vw; }
+    #clawd-thought-container.pos-top-left { top: 5vh; left: 8vw; }
+    #clawd-thought-container.pos-top-right { top: 5vh; right: 8vw; }
+    #clawd-thought-container.pos-bottom-left { top: 5vh; left: 25vw; }
+    #clawd-thought-container.pos-bottom-right { top: 5vh; right: 25vw; }
     
     #clawd-thought {
       max-width: 75vw;
@@ -122,26 +122,28 @@
     .thought-bubble.b2 { width: 20px; height: 20px; }
     .thought-bubble.b3 { width: 30px; height: 30px; }
     
-    /* Position bubbles based on container position - pointing toward face (center) */
-    /* top-left: bubbles go down-right toward center */
-    #clawd-thought-container.pos-top-left .thought-bubble.b1 { bottom: -18px; right: -18px; }
-    #clawd-thought-container.pos-top-left .thought-bubble.b2 { bottom: -48px; right: -45px; }
-    #clawd-thought-container.pos-top-left .thought-bubble.b3 { bottom: -88px; right: -80px; }
+    /* Position bubbles - all pointing down toward face (center of screen) */
+    /* b3 closest to main bubble, b1 closest to face */
     
-    /* top-right: bubbles go down-left toward center */
-    #clawd-thought-container.pos-top-right .thought-bubble.b1 { bottom: -18px; left: -18px; }
-    #clawd-thought-container.pos-top-right .thought-bubble.b2 { bottom: -48px; left: -45px; }
-    #clawd-thought-container.pos-top-right .thought-bubble.b3 { bottom: -88px; left: -80px; }
+    /* top-left: bubbles go down-right */
+    #clawd-thought-container.pos-top-left .thought-bubble.b3 { bottom: -25px; right: 20%; }
+    #clawd-thought-container.pos-top-left .thought-bubble.b2 { bottom: -55px; right: 5%; }
+    #clawd-thought-container.pos-top-left .thought-bubble.b1 { bottom: -80px; right: -10%; }
     
-    /* bottom-left: bubbles go up-right toward center */
-    #clawd-thought-container.pos-bottom-left .thought-bubble.b1 { top: -18px; right: -18px; }
-    #clawd-thought-container.pos-bottom-left .thought-bubble.b2 { top: -48px; right: -45px; }
-    #clawd-thought-container.pos-bottom-left .thought-bubble.b3 { top: -88px; right: -80px; }
+    /* top-right: bubbles go down-left */
+    #clawd-thought-container.pos-top-right .thought-bubble.b3 { bottom: -25px; left: 20%; }
+    #clawd-thought-container.pos-top-right .thought-bubble.b2 { bottom: -55px; left: 5%; }
+    #clawd-thought-container.pos-top-right .thought-bubble.b1 { bottom: -80px; left: -10%; }
     
-    /* bottom-right: bubbles go up-left toward center */
-    #clawd-thought-container.pos-bottom-right .thought-bubble.b1 { top: -18px; left: -18px; }
-    #clawd-thought-container.pos-bottom-right .thought-bubble.b2 { top: -48px; left: -45px; }
-    #clawd-thought-container.pos-bottom-right .thought-bubble.b3 { top: -88px; left: -80px; }
+    /* center-left: bubbles go down-right */
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b3 { bottom: -25px; right: 30%; }
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b2 { bottom: -55px; right: 20%; }
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b1 { bottom: -80px; right: 10%; }
+    
+    /* center-right: bubbles go down-left */
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b3 { bottom: -25px; left: 30%; }
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b2 { bottom: -55px; left: 20%; }
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b1 { bottom: -80px; left: 10%; }
     
     /* Working mode background */
     body.working-mode {
