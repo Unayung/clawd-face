@@ -145,6 +145,14 @@
     #clawd-thought-container.pos-bottom-right .thought-bubble.b2 { bottom: -55px; left: 20%; }
     #clawd-thought-container.pos-bottom-right .thought-bubble.b1 { bottom: -80px; left: 10%; }
     
+    /* Mobile: lower position to avoid connection status */
+    @media (max-width: 768px) {
+      #clawd-thought-container.pos-top-left,
+      #clawd-thought-container.pos-top-right,
+      #clawd-thought-container.pos-bottom-left,
+      #clawd-thought-container.pos-bottom-right { top: 12vh; }
+    }
+    
     /* Working mode background */
     body.working-mode {
       background: linear-gradient(135deg, #FFE5E5 0%, #FFCCCC 50%, #FFD6D6 100%) !important;
