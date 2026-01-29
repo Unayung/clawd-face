@@ -122,22 +122,26 @@
     .thought-bubble.b2 { width: 20px; height: 20px; }
     .thought-bubble.b3 { width: 30px; height: 30px; }
     
-    /* Position bubbles based on container position */
-    #clawd-thought-container.pos-top-left .thought-bubble.b1 { bottom: -45px; right: 15px; }
-    #clawd-thought-container.pos-top-left .thought-bubble.b2 { bottom: -70px; right: 35px; }
-    #clawd-thought-container.pos-top-left .thought-bubble.b3 { bottom: -105px; right: 60px; }
+    /* Position bubbles based on container position - pointing toward face (center) */
+    /* top-left: bubbles go down-right toward center */
+    #clawd-thought-container.pos-top-left .thought-bubble.b1 { bottom: -18px; right: -18px; }
+    #clawd-thought-container.pos-top-left .thought-bubble.b2 { bottom: -48px; right: -45px; }
+    #clawd-thought-container.pos-top-left .thought-bubble.b3 { bottom: -88px; right: -80px; }
     
-    #clawd-thought-container.pos-top-right .thought-bubble.b1 { bottom: -45px; left: 15px; }
-    #clawd-thought-container.pos-top-right .thought-bubble.b2 { bottom: -70px; left: 35px; }
-    #clawd-thought-container.pos-top-right .thought-bubble.b3 { bottom: -105px; left: 60px; }
+    /* top-right: bubbles go down-left toward center */
+    #clawd-thought-container.pos-top-right .thought-bubble.b1 { bottom: -18px; left: -18px; }
+    #clawd-thought-container.pos-top-right .thought-bubble.b2 { bottom: -48px; left: -45px; }
+    #clawd-thought-container.pos-top-right .thought-bubble.b3 { bottom: -88px; left: -80px; }
     
-    #clawd-thought-container.pos-bottom-left .thought-bubble.b1 { top: -45px; right: 15px; }
-    #clawd-thought-container.pos-bottom-left .thought-bubble.b2 { top: -70px; right: 35px; }
-    #clawd-thought-container.pos-bottom-left .thought-bubble.b3 { top: -105px; right: 60px; }
+    /* bottom-left: bubbles go up-right toward center */
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b1 { top: -18px; right: -18px; }
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b2 { top: -48px; right: -45px; }
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b3 { top: -88px; right: -80px; }
     
-    #clawd-thought-container.pos-bottom-right .thought-bubble.b1 { top: -45px; left: 15px; }
-    #clawd-thought-container.pos-bottom-right .thought-bubble.b2 { top: -70px; left: 35px; }
-    #clawd-thought-container.pos-bottom-right .thought-bubble.b3 { top: -105px; left: 60px; }
+    /* bottom-right: bubbles go up-left toward center */
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b1 { top: -18px; left: -18px; }
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b2 { top: -48px; left: -45px; }
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b3 { top: -88px; left: -80px; }
     
     /* Working mode background */
     body.working-mode {
