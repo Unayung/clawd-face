@@ -86,31 +86,58 @@
       text-shadow: 0 1px 4px rgba(255,255,255,0.6);
     }
     #clawd-subtitle.visible { opacity: 1; }
-    #clawd-thought {
+    #clawd-thought-container {
       position: fixed;
-      top: 15vh;
-      left: 50%;
-      transform: translateX(-50%);
-      max-width: 85vw;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 8;
+      pointer-events: none;
+    }
+    #clawd-thought-container.visible { opacity: 1; }
+    #clawd-thought-container.pos-top-left { top: 8vh; left: 5vw; }
+    #clawd-thought-container.pos-top-right { top: 8vh; right: 5vw; }
+    #clawd-thought-container.pos-bottom-left { bottom: 25vh; left: 5vw; }
+    #clawd-thought-container.pos-bottom-right { bottom: 25vh; right: 5vw; }
+    
+    #clawd-thought {
+      max-width: 75vw;
       padding: 1em 1.5em;
-      background: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.92);
       border-radius: 1.5em;
       font-size: clamp(1.1rem, 3.5vw, 1.6rem);
       color: #5a4a7a;
       font-style: italic;
       text-align: center;
-      opacity: 0;
-      transition: opacity 0.5s ease;
-      z-index: 8;
-      pointer-events: none;
       box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    #clawd-thought::before {
-      content: '💭';
-      margin-right: 0.5em;
-      font-size: 1.2em;
+    
+    /* Comic-style connecting bubbles */
+    .thought-bubble {
+      position: absolute;
+      background: rgba(255,255,255,0.92);
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
-    #clawd-thought.visible { opacity: 1; }
+    .thought-bubble.b1 { width: 12px; height: 12px; }
+    .thought-bubble.b2 { width: 20px; height: 20px; }
+    .thought-bubble.b3 { width: 30px; height: 30px; }
+    
+    /* Position bubbles based on container position */
+    #clawd-thought-container.pos-top-left .thought-bubble.b1 { bottom: -45px; right: 15px; }
+    #clawd-thought-container.pos-top-left .thought-bubble.b2 { bottom: -70px; right: 35px; }
+    #clawd-thought-container.pos-top-left .thought-bubble.b3 { bottom: -105px; right: 60px; }
+    
+    #clawd-thought-container.pos-top-right .thought-bubble.b1 { bottom: -45px; left: 15px; }
+    #clawd-thought-container.pos-top-right .thought-bubble.b2 { bottom: -70px; left: 35px; }
+    #clawd-thought-container.pos-top-right .thought-bubble.b3 { bottom: -105px; left: 60px; }
+    
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b1 { top: -45px; right: 15px; }
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b2 { top: -70px; right: 35px; }
+    #clawd-thought-container.pos-bottom-left .thought-bubble.b3 { top: -105px; right: 60px; }
+    
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b1 { top: -45px; left: 15px; }
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b2 { top: -70px; left: 35px; }
+    #clawd-thought-container.pos-bottom-right .thought-bubble.b3 { top: -105px; left: 60px; }
     
     /* Working mode background */
     body.working-mode {
@@ -151,7 +178,12 @@
       <div id="clawd-label">idle</div>
     </div>
     <div id="clawd-subtitle"></div>
-    <div id="clawd-thought"></div>
+    <div id="clawd-thought-container">
+      <div id="clawd-thought"></div>
+      <div class="thought-bubble b1"></div>
+      <div class="thought-bubble b2"></div>
+      <div class="thought-bubble b3"></div>
+    </div>
   `;
   container.appendChild(root);
 
@@ -163,6 +195,7 @@
   const eyeLeftGroup = document.getElementById('clawd-eye-left');
   const eyeRightGroup = document.getElementById('clawd-eye-right');
   const subtitleEl = document.getElementById('clawd-subtitle');
+  const thoughtContainerEl = document.getElementById('clawd-thought-container');
   const thoughtEl = document.getElementById('clawd-thought');
 
   // ── Expression Definitions ──
@@ -455,22 +488,37 @@
   // ── Random Thoughts ──
   const thoughtfulExpressions = ['idle', 'bored', 'thinking', 'sleepy', 'confused'];
   
+  const thoughtPositions = ['pos-top-left', 'pos-top-right', 'pos-bottom-left', 'pos-bottom-right'];
+  let lastThoughtPos = '';
+
   function showThought() {
     // Show thoughts when idle OR in thoughtful expressions
     if (!isIdle && !thoughtfulExpressions.includes(currentExpression)) return;
     const thought = getRandomThought();
     thoughtEl.textContent = thought;
-    thoughtEl.classList.add('visible');
+    
+    // Random position (avoid repeating same position)
+    let newPos;
+    do {
+      newPos = thoughtPositions[Math.floor(Math.random() * thoughtPositions.length)];
+    } while (newPos === lastThoughtPos && thoughtPositions.length > 1);
+    lastThoughtPos = newPos;
+    
+    // Clear old position classes and apply new one
+    thoughtContainerEl.classList.remove(...thoughtPositions);
+    thoughtContainerEl.classList.add(newPos);
+    thoughtContainerEl.classList.add('visible');
+    
     clearTimeout(thoughtHideTimer);
     thoughtHideTimer = setTimeout(() => {
-      thoughtEl.classList.remove('visible');
+      thoughtContainerEl.classList.remove('visible');
     }, 5000 + Math.random() * 3000);
   }
 
   function hideThought() {
     clearTimeout(thoughtTimer);
     clearTimeout(thoughtHideTimer);
-    thoughtEl.classList.remove('visible');
+    thoughtContainerEl.classList.remove('visible');
   }
 
   function startThoughtCycle() {
