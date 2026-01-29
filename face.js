@@ -151,7 +151,7 @@
       #clawd-thought-container.pos-top-right,
       #clawd-thought-container.pos-bottom-left,
       #clawd-thought-container.pos-bottom-right { top: 12vh; }
-      .thought-bubble.b1, .thought-bubble.b2 { display: none; }
+      .thought-bubble { display: none; }
     }
     
     /* Working mode background */
