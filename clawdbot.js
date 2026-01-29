@@ -202,8 +202,26 @@ class ClawdbotFace {
         }
         // Auto subtitle
         if (window.face && window.face.subtitle) {
-          const clean = text.replace(/MEDIA:\S+/g, '').trim();
-          if (clean) window.face.subtitle(clean, Math.max(clean.length * 150, 8000));
+          let clean = text.replace(/MEDIA:\S+/g, '').trim();
+          // Strip markdown formatting
+          clean = clean
+            .replace(/```[\s\S]*?```/g, '[code]')     // code blocks
+            .replace(/`([^`]+)`/g, '$1')              // inline code
+            .replace(/\*\*([^*]+)\*\*/g, '$1')        // bold **
+            .replace(/__([^_]+)__/g, '$1')            // bold __
+            .replace(/\*([^*]+)\*/g, '$1')            // italic *
+            .replace(/_([^_]+)_/g, '$1')              // italic _
+            .replace(/~~([^~]+)~~/g, '$1')            // strikethrough
+            .replace(/^#{1,6}\s+/gm, '')              // headers
+            .replace(/^\s*[-*+]\s+/gm, '• ')          // list items
+            .replace(/^\s*\d+\.\s+/gm, '')            // numbered lists
+            .replace(/^\s*>/gm, '')                   // blockquotes
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // links
+            .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')   // images
+            .replace(/\|/g, ' ')                      // table separators
+            .replace(/\n{3,}/g, '\n\n')               // excessive newlines
+            .trim();
+          if (clean) window.face.subtitle(clean, Math.max(clean.length * 120, 8000));
         }
       }
       if (this.onMessage) this.onMessage(text, payload);

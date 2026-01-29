@@ -44,6 +44,9 @@ const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || '';
 // ── SSE clients for expression push ──
 const sseClients = new Set();
 
+// ── SSE clients for live reload ──
+const reloadClients = new Set();
+
 const MIME = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -245,6 +248,54 @@ function handleRequest(req, res) {
     return;
   }
 
+  // ── GET /api/trending — Fetch trending content for thoughts ──
+  if (req.method === 'GET' && url === '/api/trending') {
+    (async () => {
+      try {
+        const thoughts = [];
+        
+        // Fetch Google News Taiwan RSS
+        try {
+          const newsResp = await fetch('https://news.google.com/rss?hl=zh-TW&gl=TW&ceid=TW:zh-Hant');
+          const newsXml = await newsResp.text();
+          const newsMatches = newsXml.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/g) || [];
+          const newsTitles = newsMatches.slice(1, 6).map(m => m.replace(/<title><!\[CDATA\[(.+?)\]\]><\/title>/, '$1'));
+          newsTitles.forEach(title => {
+            thoughts.push({ type: 'news', text: `看到新聞說：${title.slice(0, 40)}...` });
+          });
+        } catch (e) { console.log('[trending] news error:', e.message); }
+
+        // Fetch Taiwan weather (Central Weather Administration RSS)
+        try {
+          const wxResp = await fetch('https://www.cwa.gov.tw/rss/forecast/36_01.xml');
+          const wxXml = await wxResp.text();
+          const wxMatch = wxXml.match(/<description>([^<]+)<\/description>/);
+          if (wxMatch && wxMatch[1] && !wxMatch[1].includes('中央氣象')) {
+            thoughts.push({ type: 'weather', text: `氣象局說：${wxMatch[1].slice(0, 50)}` });
+          }
+        } catch (e) { console.log('[trending] weather error:', e.message); }
+
+        // Fetch Google Trends (Taiwan)
+        try {
+          const trendsResp = await fetch('https://trends.google.com.tw/trending/rss?geo=TW');
+          const trendsXml = await trendsResp.text();
+          const trendMatches = trendsXml.match(/<title>([^<]+)<\/title>/g) || [];
+          const trendTitles = trendMatches.slice(1, 6).map(m => m.replace(/<title>([^<]+)<\/title>/, '$1'));
+          trendTitles.forEach(title => {
+            thoughts.push({ type: 'trend', text: `大家最近都在搜「${title}」` });
+          });
+        } catch (e) { console.log('[trending] trends error:', e.message); }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, thoughts }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    })();
+    return;
+  }
+
   // ── POST /clear-played — Clear subtitle/audio from state ──
   if (req.method === 'POST' && url === '/clear-played') {
     const stateFile = path.join(DIR, 'state.json');
@@ -291,6 +342,41 @@ function handleRequest(req, res) {
       res.end(data);
     });
     return;
+  }
+
+  // ── GET /live-reload — SSE for live reload ──
+  if (req.method === 'GET' && url === '/live-reload') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    res.write(':\n\n');
+    reloadClients.add(res);
+    console.log(`[live-reload] + client (${reloadClients.size} connected)`);
+
+    req.on('close', () => {
+      reloadClients.delete(res);
+      console.log(`[live-reload] - client (${reloadClients.size} connected)`);
+    });
+    return;
+  }
+
+  // ── POST /reload — Trigger live reload ──
+  if (req.method === 'POST' && url === '/reload') {
+    const event = `data: reload\n\n`;
+    let sent = 0;
+    for (const client of reloadClients) {
+      try {
+        client.write(event);
+        sent++;
+      } catch {
+        reloadClients.delete(client);
+      }
+    }
+    console.log(`[live-reload] triggered (${sent} clients)`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true, sent }));
   }
 
   // ── GET /health — Health check ──
