@@ -71,7 +71,7 @@
     }
     #clawd-subtitle {
       position: fixed;
-      bottom: 8vh; left: 50%;
+      bottom: calc(15vh + env(safe-area-inset-bottom, 0px)); left: 50%;
       transform: translateX(-50%);
       max-width: 80vw;
       text-align: center;
@@ -86,6 +86,40 @@
       text-shadow: 0 1px 4px rgba(255,255,255,0.6);
     }
     #clawd-subtitle.visible { opacity: 1; }
+    #clawd-thought {
+      position: fixed;
+      top: 15vh;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 85vw;
+      padding: 1em 1.5em;
+      background: rgba(255,255,255,0.85);
+      border-radius: 1.5em;
+      font-size: clamp(1.1rem, 3.5vw, 1.6rem);
+      color: #5a4a7a;
+      font-style: italic;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 8;
+      pointer-events: none;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    #clawd-thought::before {
+      content: '💭';
+      margin-right: 0.5em;
+      font-size: 1.2em;
+    }
+    #clawd-thought.visible { opacity: 1; }
+    
+    /* Working mode background */
+    body.working-mode {
+      background: linear-gradient(135deg, #FFE5E5 0%, #FFCCCC 50%, #FFD6D6 100%) !important;
+      transition: background 0.8s ease;
+    }
+    body {
+      transition: background 0.8s ease;
+    }
     .clawd-eye-shape { fill: #4a3f5c; stroke: none; transition: opacity 0.08s ease; }
     .clawd-pupil { fill: #fff; stroke: none; }
     .clawd-mouth { stroke: #4a3f5c; stroke-width: 3; fill: none; stroke-linecap: round; }
@@ -117,6 +151,7 @@
       <div id="clawd-label">idle</div>
     </div>
     <div id="clawd-subtitle"></div>
+    <div id="clawd-thought"></div>
   `;
   container.appendChild(root);
 
@@ -128,6 +163,7 @@
   const eyeLeftGroup = document.getElementById('clawd-eye-left');
   const eyeRightGroup = document.getElementById('clawd-eye-right');
   const subtitleEl = document.getElementById('clawd-subtitle');
+  const thoughtEl = document.getElementById('clawd-thought');
 
   // ── Expression Definitions ──
   const expressions = {
@@ -164,6 +200,56 @@
   let talkAnimFrame = null;
   let subtitleTimeout = null;
   let subtitleTypingTimer = null;
+  let labelDotsTimer = null;
+  let labelDotsCount = 1;
+  let thoughtTimer = null;
+  let thoughtHideTimer = null;
+
+  // Random idle thoughts (static fallback)
+  const staticThoughts = [
+    '今天天氣不錯...',
+    '晚餐要吃什麼呢',
+    '好想喝咖啡',
+    '應該來整理一下桌面',
+    '等等要做什麼來著...',
+    'bug 藏在哪裡呢',
+    '這個 function 可以重構',
+    '記得要 commit',
+    '好睏...',
+    '週末要幹嘛',
+    '...',
+  ];
+
+  // Dynamic thoughts from trending data
+  let dynamicThoughts = [];
+  let lastTrendingFetch = 0;
+  const TRENDING_CACHE_MS = 5 * 60 * 1000; // Cache for 5 minutes
+
+  async function fetchTrendingThoughts() {
+    const now = Date.now();
+    if (now - lastTrendingFetch < TRENDING_CACHE_MS && dynamicThoughts.length > 0) {
+      return; // Use cached data
+    }
+    try {
+      const resp = await fetch('/api/trending');
+      const data = await resp.json();
+      if (data.ok && data.thoughts?.length) {
+        dynamicThoughts = data.thoughts.map(t => t.text);
+        lastTrendingFetch = now;
+        console.log('[thoughts] fetched', dynamicThoughts.length, 'trending items');
+      }
+    } catch (e) {
+      console.log('[thoughts] fetch error:', e.message);
+    }
+  }
+
+  function getRandomThought() {
+    // 70% chance to use dynamic thoughts if available
+    if (dynamicThoughts.length > 0 && Math.random() < 0.7) {
+      return dynamicThoughts[Math.floor(Math.random() * dynamicThoughts.length)];
+    }
+    return staticThoughts[Math.floor(Math.random() * staticThoughts.length)];
+  }
 
   // ── SVG Helpers ──
   function svgCreate(tag, attrs) {
@@ -249,14 +335,38 @@
     mouthEl.setAttribute('d', expr.mouth);
     mouthEl.style.fill = expr.mouthStyle === 'open' ? FACE_COLOR : 'none';
     mouthEl.style.stroke = FACE_COLOR;
-    labelEl.textContent = expr.label;
     glowEl.style.background = expr.glow;
+
+    // Animated dots for "working" labels
+    clearInterval(labelDotsTimer);
+    labelDotsTimer = null;
+    if (expr.label.toLowerCase().includes('working')) {
+      const baseLabel = expr.label.replace(/\.+$/, '');
+      labelDotsCount = 1;
+      labelEl.textContent = baseLabel + '.';
+      labelDotsTimer = setInterval(() => {
+        labelDotsCount = (labelDotsCount % 3) + 1;
+        labelEl.textContent = baseLabel + '.'.repeat(labelDotsCount);
+      }, 400);
+    } else {
+      labelEl.textContent = expr.label;
+    }
   }
 
   // ── Expression Switching ──
+  const workingExpressions = ['working', 'focused', 'investigating'];
+  
   function setExpression(name, options = {}) {
     if (!expressions[name]) return;
     const { manual = false, duration = 0 } = options;
+    
+    // Toggle working mode background
+    if (workingExpressions.includes(name)) {
+      document.body.classList.add('working-mode');
+    } else {
+      document.body.classList.remove('working-mode');
+    }
+    
     svgEl.classList.add('fading');
     labelEl.style.opacity = '0';
     setTimeout(() => {
@@ -269,8 +379,9 @@
       isIdle = false;
       clearTimeout(idleTimer);
       clearTimeout(manualOverrideTimeout);
+      hideThought();
       if (duration > 0) {
-        manualOverrideTimeout = setTimeout(() => { isIdle = true; startIdleCycle(); startPupilDrift(); }, duration);
+        manualOverrideTimeout = setTimeout(() => { isIdle = true; startIdleCycle(); startPupilDrift(); startThoughtCycle(); }, duration);
       }
     }
   }
@@ -340,6 +451,40 @@
     clearTimeout(subtitleTimeout); clearTimeout(subtitleTypingTimer);
     subtitleEl.classList.remove('visible'); subtitleEl.textContent = '';
   }
+
+  // ── Random Thoughts ──
+  const thoughtfulExpressions = ['idle', 'bored', 'thinking', 'sleepy', 'confused'];
+  
+  function showThought() {
+    // Show thoughts when idle OR in thoughtful expressions
+    if (!isIdle && !thoughtfulExpressions.includes(currentExpression)) return;
+    const thought = getRandomThought();
+    thoughtEl.textContent = thought;
+    thoughtEl.classList.add('visible');
+    clearTimeout(thoughtHideTimer);
+    thoughtHideTimer = setTimeout(() => {
+      thoughtEl.classList.remove('visible');
+    }, 5000 + Math.random() * 3000);
+  }
+
+  function hideThought() {
+    clearTimeout(thoughtTimer);
+    clearTimeout(thoughtHideTimer);
+    thoughtEl.classList.remove('visible');
+  }
+
+  function startThoughtCycle() {
+    clearTimeout(thoughtTimer);
+    fetchTrendingThoughts(); // Fetch on start
+    (function next() {
+      thoughtTimer = setTimeout(async () => {
+        if (!isIdle) return;
+        await fetchTrendingThoughts(); // Refresh if cache expired
+        if (Math.random() < 0.85) showThought(); // 85% chance to show
+        next();
+      }, 10000); // Every 10 seconds
+    })();
+  }
   function showSubtitle(text, durationMs) {
     cancelSubtitle();
     if (!text) return;
@@ -357,7 +502,7 @@
   // ── Public API ──
   window.face = {
     set(name, duration) { setExpression(name, { manual: true, duration: duration || 0 }); },
-    idle() { isIdle = true; startIdleCycle(); startPupilDrift(); },
+    idle() { isIdle = true; startIdleCycle(); startPupilDrift(); startThoughtCycle(); },
     list() { return Object.keys(expressions); },
     current() { return currentExpression; },
     talk(durationMs) {
@@ -374,5 +519,6 @@
   startIdleCycle();
   scheduleNextBlink();
   startPupilDrift();
+  startThoughtCycle();
 
 })();
