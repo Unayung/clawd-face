@@ -11,7 +11,7 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #f5d5e0 100%);
+    background: linear-gradient(135deg, #FFF9E6 0%, #FFFACD 50%, #FFF8DC 100%);
     font-family: 'Courier New', 'Menlo', monospace;
     height: 100vh; width: 100vw;
     overflow: hidden;
@@ -20,7 +20,7 @@
 
   /* ── Status badge ── */
   #status-bar {
-    position: fixed; top: 0.8rem; right: 0.8rem; z-index: 100;
+    position: fixed; top: calc(0.8rem + env(safe-area-inset-top, 0px)); right: 0.8rem; z-index: 100;
     display: flex; flex-direction: column; gap: 0.3rem;
     align-items: flex-end;
   }
@@ -87,7 +87,7 @@
   /* ── User message bubble ── */
   #bubble {
     position: fixed;
-    top: 8vh;
+    top: calc(15vh + env(safe-area-inset-top, 0px));
     max-width: 60vw;
     padding: 1.2em 1.8em;
     background: rgba(255,255,255,0.85);
@@ -134,9 +134,50 @@
   #bubble.visible {
     opacity: 1;
   }
+  /* Start overlay */
+  #start-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    cursor: pointer;
+    transition: opacity 0.3s;
+  }
+  #start-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .start-content {
+    text-align: center;
+    color: #fff;
+  }
+  .start-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .start-text {
+    font-size: 1.5rem;
+    opacity: 0.8;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
 </style>
 </head>
 <body>
+
+<!-- Start overlay (unlocks iOS audio) -->
+<div id="start-overlay">
+  <div class="start-content">
+    <div class="start-icon">👋</div>
+    <div class="start-text">Tap to start</div>
+  </div>
+</div>
 
 <!-- Face engine -->
 <script src="face.js"></script>
@@ -230,6 +271,24 @@
       }
     }, { once: false, passive: true });
   });
+
+  // Start overlay — tap to unlock audio (iOS requirement)
+  const startOverlay = document.getElementById('start-overlay');
+  if (startOverlay) {
+    startOverlay.addEventListener('click', () => {
+      ensureAudioCtx();
+      // Play silent buffer to fully unlock iOS audio
+      if (audioCtx) {
+        const silentBuffer = audioCtx.createBuffer(1, 1, 22050);
+        const source = audioCtx.createBufferSource();
+        source.buffer = silentBuffer;
+        source.connect(audioCtx.destination);
+        source.start();
+      }
+      startOverlay.classList.add('hidden');
+      setTimeout(() => startOverlay.remove(), 300);
+    }, { once: true });
+  }
 
   function playAudioBuffer(arrayBuffer) {
     if (!audioCtx || audioCtx.state !== 'running') {
@@ -430,8 +489,35 @@
   let speechErrorCount = 0;
   const MAX_SPEECH_ERRORS = 2; // Switch to MediaRecorder after 2 consecutive errors
 
+  // Detect iOS - always use MediaRecorder on iOS (Web Speech API is unreliable)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    useMediaRecorder = true;
+    console.log('[ptt] iOS detected, using MediaRecorder');
+  }
+
+  // Pre-warm microphone permission on iOS (request on first page interaction)
+  let micPermissionGranted = false;
+  if (isIOS) {
+    const warmupMic = async () => {
+      if (micPermissionGranted) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop()); // Release immediately
+        micPermissionGranted = true;
+        console.log('[ptt] mic permission pre-granted');
+      } catch (e) {
+        console.log('[ptt] mic warmup failed:', e.message);
+      }
+    };
+    ['click', 'touchstart'].forEach(evt => {
+      document.addEventListener(evt, warmupMic, { once: true, passive: true });
+    });
+  }
+
   // Try to use Web Speech API
-  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  if (!useMediaRecorder && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.lang = navigator.language || 'en-US';
@@ -522,14 +608,27 @@
     // Pre-unlock AudioContext
     ensureAudioCtx();
 
+    // Show immediate feedback
+    pttBtn.classList.add('active');
+    pttBtn.textContent = '⏳';
+    chatInput.placeholder = 'Starting...';
+
     if (useMediaRecorder || !recognition) {
-      // MediaRecorder fallback (for iOS)
+      // MediaRecorder (used on iOS and as fallback)
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, {
-          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus' : 'audio/webm'
-        });
+        
+        // Determine best mimeType for this browser
+        let mimeType = 'audio/webm';
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4'; // iOS Safari
+        } else if (MediaRecorder.isTypeSupported('audio/aac')) {
+          mimeType = 'audio/aac';
+        }
+        
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
         audioChunks = [];
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) audioChunks.push(e.data);
@@ -540,12 +639,15 @@
         };
         mediaRecorder.start();
         isRecording = true;
-        pttBtn.classList.add('active');
         pttBtn.textContent = '⏺';
         chatInput.placeholder = 'Listening...';
         if (window.face) face.set('alert', 30000);
+        console.log('[ptt] recording started, mimeType:', mimeType);
       } catch (err) {
         console.error('[ptt] mic error:', err);
+        pttBtn.classList.remove('active');
+        pttBtn.textContent = '🎤';
+        chatInput.placeholder = 'Mic error - tap to retry';
       }
     } else {
       // Web Speech API
@@ -715,9 +817,26 @@
     }
   }
 
+  // ── Live Reload (dev) ──
+  function setupLiveReload() {
+    const es = new EventSource('/live-reload');
+    es.onmessage = (e) => {
+      if (e.data === 'reload') {
+        console.log('[live-reload] reloading...');
+        location.reload();
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      // Retry in 5s
+      setTimeout(setupLiveReload, 5000);
+    };
+  }
+
   // ── Init ──
   detectServer();
   fetchConfig().then(() => detectGateway());
+  setupLiveReload();
 })();
 </script>
 
