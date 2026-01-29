@@ -38,6 +38,8 @@ if (fs.existsSync(envPath)) {
 }
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const GATEWAY_URL = process.env.GATEWAY_URL || '';
+const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || '';
 
 // ── SSE clients for expression push ──
 const sseClients = new Set();
@@ -298,6 +300,15 @@ function handleRequest(req, res) {
       ok: true,
       sseClients: sseClients.size,
       hasOpenAI: !!OPENAI_API_KEY,
+    }));
+  }
+
+  // ── GET /config — Client configuration ──
+  if (req.method === 'GET' && url === '/config') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      gatewayUrl: GATEWAY_URL,
+      gatewayToken: GATEWAY_TOKEN,
     }));
   }
 

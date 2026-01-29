@@ -287,10 +287,12 @@
     }
   }
 
-  // ── URL params ──
+  // ── Gateway config (fetched from server) ──
+  let gwUrl = '';
+  let gwToken = '';
+
+  // URL params can still override (for dev/testing)
   const params = new URLSearchParams(window.location.search);
-  const gwUrl = params.get('gw') || '';
-  const gwToken = params.get('token') || '';
 
   // Each device gets its own persistent session via localStorage
   function getSessionKey() {
@@ -694,9 +696,28 @@
     }
   });
 
+  // ── Fetch gateway config from server ──
+  async function fetchConfig() {
+    // URL params override (for dev/testing)
+    if (params.get('gw')) {
+      gwUrl = params.get('gw');
+      gwToken = params.get('token') || '';
+      return;
+    }
+
+    try {
+      const resp = await fetch('/config', { signal: AbortSignal.timeout(2000) });
+      const config = await resp.json();
+      gwUrl = config.gatewayUrl || '';
+      gwToken = config.gatewayToken || '';
+    } catch {
+      // Not running via server.js or config not available
+    }
+  }
+
   // ── Init ──
   detectServer();
-  detectGateway();
+  fetchConfig().then(() => detectGateway());
 })();
 </script>
 
