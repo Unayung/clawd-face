@@ -145,12 +145,13 @@
     #clawd-thought-container.pos-bottom-right .thought-bubble.b2 { bottom: -55px; left: 20%; }
     #clawd-thought-container.pos-bottom-right .thought-bubble.b1 { bottom: -80px; left: 10%; }
     
-    /* Mobile: lower position to avoid connection status */
+    /* Mobile: lower position + hide small/medium bubbles */
     @media (max-width: 768px) {
       #clawd-thought-container.pos-top-left,
       #clawd-thought-container.pos-top-right,
       #clawd-thought-container.pos-bottom-left,
       #clawd-thought-container.pos-bottom-right { top: 12vh; }
+      .thought-bubble.b1, .thought-bubble.b2 { display: none; }
     }
     
     /* Working mode background */
